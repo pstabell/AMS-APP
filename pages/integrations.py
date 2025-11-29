@@ -277,12 +277,13 @@ def show_integrations_page():
     col1, col2 = st.columns([2, 1])
 
     with col1:
-        search = st.text_input("🔍 Search integrations", placeholder="Search by name or category...")
+        search = st.text_input("🔍 Search integrations", placeholder="Search by name or category...", key="integration_search")
 
     with col2:
         filter_option = st.selectbox(
             "Filter by",
-            ["All", "Connected Only", "Popular Only", "Not Connected"]
+            ["All", "Connected Only", "Popular Only", "Not Connected"],
+            key="integration_filter"
         )
 
     st.divider()

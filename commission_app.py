@@ -6906,9 +6906,11 @@ def main():
 
     # Add agency pages if applicable
     user_email = st.session_state.get('user_email', '')
-    if demo_mode or is_agency_account(user_email):
+    is_agency_owner = st.session_state.get('is_agency_owner', False)
+    if demo_mode or is_agency_account(user_email) or is_agency_owner:
         navigation_pages.insert(1, "🏢 Agency Dashboard")  # After Dashboard
-        navigation_pages.insert(2, "🔗 Integrations")  # After Agency Dashboard
+        navigation_pages.insert(2, "👥 Team Management")  # After Agency Dashboard
+        navigation_pages.insert(3, "🔗 Integrations")  # After Team Management
 
     page = st.sidebar.radio(
         "Navigation",
@@ -7390,6 +7392,13 @@ def main():
         sys.path.append(os.path.dirname(os.path.abspath(__file__)))
         from pages.agency_dashboard import show_agency_dashboard
         show_agency_dashboard()
+
+    # --- Team Management ---
+    elif page == "👥 Team Management":
+        import sys
+        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+        from pages.team_management import show_team_management
+        show_team_management()
 
     # --- Integrations ---
     elif page == "🔗 Integrations":
