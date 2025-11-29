@@ -6911,7 +6911,8 @@ def main():
         navigation_pages.insert(1, "🏢 Agency Dashboard")  # After Dashboard
         navigation_pages.insert(2, "👥 Team Management")  # After Agency Dashboard
         navigation_pages.insert(3, "💳 Agency Reconciliation")  # After Team Management
-        navigation_pages.insert(4, "🔗 Integrations")  # After Reconciliation
+        navigation_pages.insert(4, "⚙️ Agency Settings")  # After Reconciliation
+        navigation_pages.insert(5, "🔗 Integrations")  # After Settings
 
     page = st.sidebar.radio(
         "Navigation",
@@ -7407,6 +7408,13 @@ def main():
         sys.path.append(os.path.dirname(os.path.abspath(__file__)))
         from pages.agency_reconciliation import show_agency_reconciliation
         show_agency_reconciliation()
+
+    # --- Agency Settings ---
+    elif page == "⚙️ Agency Settings":
+        import sys
+        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+        from pages.agency_settings import show_agency_settings
+        show_agency_settings()
 
     # --- Integrations ---
     elif page == "🔗 Integrations":
