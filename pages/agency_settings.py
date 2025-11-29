@@ -651,6 +651,7 @@ def update_notification_preferences(agency_id: str, preferences: Dict) -> bool:
         return False
 
 
+@st.cache_data(ttl=300)  # Cache for 5 minutes
 def load_branding_settings(agency_id: str) -> Dict:
     """Load branding settings."""
     try:
@@ -923,6 +924,7 @@ def show_commission_rules(agency_id: str):
         st.info("No agents available. Add agents in Team Management first.")
 
 
+@st.cache_data(ttl=300)  # Cache for 5 minutes
 def load_commission_rules(agency_id: str) -> Dict:
     """Load commission rules for an agency."""
     try:

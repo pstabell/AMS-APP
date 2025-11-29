@@ -43,6 +43,7 @@ def get_user_email():
     return st.session_state.get('user_email', 'demo@example.com')
 
 
+@st.cache_data(ttl=300)  # Cache for 5 minutes
 def get_agency_performance_data(agency_id: str, year: int = None):
     """
     Load real agency performance data from Supabase.
@@ -130,6 +131,7 @@ def get_agency_performance_data(agency_id: str, year: int = None):
         }
 
 
+@st.cache_data(ttl=300)  # Cache for 5 minutes
 def get_monthly_trends(agency_id: str, months: int = 6):
     """
     Get monthly performance trends for top agents.
@@ -183,6 +185,7 @@ def get_monthly_trends(agency_id: str, months: int = 6):
         return pd.DataFrame()
 
 
+@st.cache_data(ttl=300)  # Cache for 5 minutes
 def get_carrier_breakdown(agency_id: str, year: int = None):
     """
     Get commission breakdown by carrier.
@@ -268,7 +271,7 @@ def show_agency_dashboard():
         with col_refresh:
             st.write("")  # Spacer
             st.write("")  # Spacer
-            if st.button("🔄 Refresh", use_container_width=True):
+            if st.button("🔄 Refresh", use_container_width=True, key="dashboard_refresh_btn"):
                 st.cache_data.clear()
                 st.rerun()
 

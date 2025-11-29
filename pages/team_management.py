@@ -15,6 +15,7 @@ def get_supabase_client():
     return create_client(url, key)
 
 
+@st.cache_data(ttl=300)  # Cache for 5 minutes
 def get_agency_agents(agency_id: str):
     """Get all agents for an agency with their stats."""
     try:
