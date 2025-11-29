@@ -6,6 +6,20 @@
 
 ---
 
+## ✅ Foundation Already in Place
+
+**Good News**: The main branch already uses Supabase Auth with UUID-based `user_id`!
+- Main branch has `get_user_id()` and `ensure_user_id()` functions
+- Session state stores both `user_email` (for display) and `user_id` (for DB operations)
+- All user tables already link via `user_id`
+
+**For Agency Platform**: We just need to ensure the agency schema uses `user_id` consistently:
+- `agencies.owner_user_id` (not owner_email)
+- `agents.user_id` (links to Supabase Auth users)
+- All RLS policies use `auth.uid()`
+
+---
+
 ## Phase 1 Objective
 
 Build a fully functional agency admin control panel that allows agency owners to:
