@@ -358,5 +358,3 @@ def show_integrations_page():
 # Main execution
 if __name__ == "__main__":
     show_integrations_page()
-else:
-    show_integrations_page()

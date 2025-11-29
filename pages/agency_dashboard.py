@@ -169,7 +169,7 @@ def show_agency_dashboard():
                     color_continuous_scale='Blues'
                 )
                 fig.update_layout(showlegend=False)
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, key="premium_chart")
 
         with col2:
             st.subheader("🎯 Commission by Agent")
@@ -184,7 +184,7 @@ def show_agency_dashboard():
                     color_continuous_scale='Greens'
                 )
                 fig.update_layout(showlegend=False)
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, key="commission_chart")
 
         # Policy count pie chart
         st.subheader("📈 Policy Distribution")
@@ -196,7 +196,7 @@ def show_agency_dashboard():
                 title="Policies by Agent",
                 hole=0.4
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key="policy_distribution_chart")
     else:
         st.info("No agents found. Add agents to see rankings and analytics.")
 
@@ -228,7 +228,7 @@ def show_agency_dashboard():
             title="Monthly Premium Trends",
             markers=True
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="monthly_trends_chart")
 
     st.divider()
 
@@ -256,6 +256,4 @@ def show_agency_dashboard():
 
 # Main execution
 if __name__ == "__main__":
-    show_agency_dashboard()
-else:
     show_agency_dashboard()

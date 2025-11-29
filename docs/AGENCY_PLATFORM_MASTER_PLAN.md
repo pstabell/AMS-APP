@@ -1,8 +1,68 @@
 # Agency Platform Master Plan
-**Created**: January 27, 2025  
-**Last Updated**: January 27, 2025  
-**Status**: Strategic Planning - Simplified Approach  
-**Version**: 1.7
+**Created**: January 27, 2025
+**Last Updated**: November 29, 2025
+**Status**: Active Development - Admin-First Strategy
+**Version**: 2.0
+
+## ⚠️ CRITICAL STRATEGY UPDATE (November 29, 2025)
+
+### The Two-Branch Strategy
+
+**MAIN BRANCH** = Individual Agent Commission Tracker (Production-Ready)
+- Solo agents tracking their own commissions
+- Agent reconciles payments from their agency
+- All features perfected and production-ready
+- **PROTECTED - Do not merge until agency-platform is feature-complete**
+
+**AGENCY-PLATFORM BRANCH** = Agency Admin/Owner Control Panel (In Development)
+- Agency owners/admins manage their entire team
+- Reconcile carrier statements across all agents
+- View agency-wide dashboards and metrics
+- Team management and role-based access
+- **Separate development - No impact on production**
+
+### Why This Approach?
+
+1. **Zero Risk to Production**: Main branch stays untouched and perfect
+2. **Build Admin View First**: Complete the agency owner experience before tackling agent views
+3. **Natural Testing Ground**: Develop and test independently
+4. **Delayed Integration**: Don't merge until agency-platform is rock-solid
+5. **Clear Separation of Concerns**: Main = Individual Users, Agency-Platform = Agency Admins
+
+### What Agency-Platform IS:
+
+✅ Admin control panel for agency owners
+✅ Multi-agent dashboards and rankings
+✅ Agency-level reconciliation (carrier → agency)
+✅ Team management and permissions
+✅ Integration catalog for agencies
+
+### What Agency-Platform is NOT (yet):
+
+❌ Individual agent login experience
+❌ Agent-only views (that comes later)
+❌ A replacement for the main branch
+❌ Ready for merge
+
+### Development Priority:
+
+**Phase 1 (Current)**: Build out agency-platform branch as admin-only
+- Complete reconciliation for agency operations
+- Team management UI
+- Agency-wide reporting
+- Real data integration (replace demo mode)
+
+**Phase 2 (Future)**: Build agent experience
+- Individual agent logins
+- Agent-only dashboard views
+- Live commission visibility for agents
+
+**Phase 3 (Much Later)**: Consider merge
+- Only when both branches are feature-complete
+- Comprehensive testing required
+- No rush - keep separate as long as needed
+
+---
 
 ## Executive Summary
 
