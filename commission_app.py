@@ -6780,7 +6780,24 @@ def main():
     # Check password before showing any content
     if not check_password():
         st.stop()
-    
+
+    # Check if agency owner and show onboarding if needed (agency-platform branch only)
+    if st.session_state.get('show_onboarding', False):
+        from agency_auth_helpers import show_agency_onboarding_wizard
+        show_agency_onboarding_wizard()
+        st.stop()
+
+    # Check if user is agency owner and set session state
+    if 'is_agency_owner' not in st.session_state:
+        user_email = st.session_state.get('user_email')
+        if user_email:
+            from agency_auth_helpers import check_if_agency_owner
+            agency_info = check_if_agency_owner(user_email)
+            st.session_state['is_agency_owner'] = agency_info['is_agency_owner']
+            if agency_info['is_agency_owner']:
+                st.session_state['agency_id'] = agency_info['agency_id']
+                st.session_state['agency_name'] = agency_info['agency_name']
+
     # Add mobile session debug tracking
     if 'page_loads' not in st.session_state:
         st.session_state.page_loads = 0
