@@ -52,11 +52,12 @@ def show_agency_settings():
     st.write(f"Manage settings for **{agency_name}**")
 
     # Tabs for different settings sections
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "🏢 Agency Profile",
         "💳 Subscription & Plan",
         "🔔 Notifications",
-        "🎨 Branding"
+        "🎨 Branding",
+        "💰 Commission Rules"
     ])
 
     with tab1:
@@ -70,6 +71,9 @@ def show_agency_settings():
 
     with tab4:
         show_branding_customization(agency_id)
+
+    with tab5:
+        show_commission_rules(agency_id)
 
 
 def show_agency_profile(agency_id: str):
@@ -702,6 +706,296 @@ def upload_logo(agency_id: str, logo_file) -> Optional[str]:
     # TODO: Implement real file upload to storage
     st.info("Logo upload to be implemented with Supabase Storage")
     return None
+
+
+def show_commission_rules(agency_id: str):
+    """Commission rules configuration section."""
+
+    st.subheader("💰 Commission Rules")
+    st.write("Configure commission split rules for your agency.")
+
+    # Load current rules
+    commission_rules = load_commission_rules(agency_id)
+
+    # Default splits section
+    st.write("### Default Commission Splits")
+    st.write("Set the default commission split percentages for different transaction types.")
+
+    with st.form("default_splits_form"):
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            new_business_split = st.number_input(
+                "New Business Split (%)",
+                min_value=0.0,
+                max_value=100.0,
+                value=commission_rules.get('default_splits', {}).get('new_business', 50.0),
+                step=5.0,
+                help="Percentage of premium paid to agent for new business"
+            )
+
+        with col2:
+            renewal_split = st.number_input(
+                "Renewal Split (%)",
+                min_value=0.0,
+                max_value=100.0,
+                value=commission_rules.get('default_splits', {}).get('renewal', 40.0),
+                step=5.0,
+                help="Percentage of premium paid to agent for renewals"
+            )
+
+        with col3:
+            service_split = st.number_input(
+                "Service/Endorsement Split (%)",
+                min_value=0.0,
+                max_value=100.0,
+                value=commission_rules.get('default_splits', {}).get('service', 30.0),
+                step=5.0,
+                help="Percentage of premium paid to agent for service work"
+            )
+
+        st.divider()
+
+        submit_defaults = st.form_submit_button("💾 Save Default Splits", use_container_width=True)
+
+        if submit_defaults:
+            new_rules = {
+                **commission_rules,
+                'default_splits': {
+                    'new_business': new_business_split,
+                    'renewal': renewal_split,
+                    'service': service_split
+                }
+            }
+
+            if save_commission_rules(agency_id, new_rules):
+                st.success("✅ Default commission splits saved!")
+                st.rerun()
+            else:
+                st.error("❌ Failed to save commission splits")
+
+    st.divider()
+
+    # Carrier overrides section
+    st.write("### Per-Carrier Overrides")
+    st.write("Override commission splits for specific carriers.")
+
+    carrier_overrides = commission_rules.get('carrier_overrides', [])
+
+    # Show existing carrier overrides
+    if carrier_overrides:
+        st.write("**Current Carrier Overrides:**")
+
+        for idx, override in enumerate(carrier_overrides):
+            with st.expander(f"**{override['carrier_name']}**"):
+                col1, col2 = st.columns([3, 1])
+
+                with col1:
+                    st.write(f"**New Business**: {override['new_business']}%")
+                    st.write(f"**Renewal**: {override['renewal']}%")
+                    st.write(f"**Service**: {override['service']}%")
+
+                with col2:
+                    if st.button("🗑️ Remove", key=f"remove_carrier_{idx}"):
+                        carrier_overrides.pop(idx)
+                        new_rules = {**commission_rules, 'carrier_overrides': carrier_overrides}
+                        if save_commission_rules(agency_id, new_rules):
+                            st.success("Carrier override removed")
+                            st.rerun()
+    else:
+        st.info("No carrier-specific overrides configured")
+
+    # Add new carrier override
+    st.write("**Add Carrier Override:**")
+    with st.form("add_carrier_override"):
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            carrier_name = st.text_input("Carrier Name", placeholder="e.g., Progressive")
+
+        with col2:
+            carrier_new = st.number_input("New Business (%)", 0.0, 100.0, 50.0, 5.0, key="carrier_new")
+
+        with col3:
+            carrier_renewal = st.number_input("Renewal (%)", 0.0, 100.0, 40.0, 5.0, key="carrier_renewal")
+
+        with col4:
+            carrier_service = st.number_input("Service (%)", 0.0, 100.0, 30.0, 5.0, key="carrier_service")
+
+        submit_carrier = st.form_submit_button("➕ Add Carrier Override")
+
+        if submit_carrier:
+            if not carrier_name:
+                st.error("Please enter a carrier name")
+            else:
+                new_override = {
+                    'carrier_name': carrier_name,
+                    'new_business': carrier_new,
+                    'renewal': carrier_renewal,
+                    'service': carrier_service
+                }
+
+                carrier_overrides.append(new_override)
+                new_rules = {**commission_rules, 'carrier_overrides': carrier_overrides}
+
+                if save_commission_rules(agency_id, new_rules):
+                    st.success(f"✅ Added override for {carrier_name}")
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to add carrier override")
+
+    st.divider()
+
+    # Agent overrides section
+    st.write("### Per-Agent Overrides")
+    st.write("Override commission splits for specific agents.")
+
+    # Load agents list
+    agents = get_agency_agents_for_rules(agency_id)
+    agent_overrides = commission_rules.get('agent_overrides', [])
+
+    # Show existing agent overrides
+    if agent_overrides:
+        st.write("**Current Agent Overrides:**")
+
+        for idx, override in enumerate(agent_overrides):
+            agent_name = override.get('agent_name', 'Unknown Agent')
+            with st.expander(f"**{agent_name}**"):
+                col1, col2 = st.columns([3, 1])
+
+                with col1:
+                    st.write(f"**New Business**: {override['new_business']}%")
+                    st.write(f"**Renewal**: {override['renewal']}%")
+                    st.write(f"**Service**: {override['service']}%")
+
+                with col2:
+                    if st.button("🗑️ Remove", key=f"remove_agent_{idx}"):
+                        agent_overrides.pop(idx)
+                        new_rules = {**commission_rules, 'agent_overrides': agent_overrides}
+                        if save_commission_rules(agency_id, new_rules):
+                            st.success("Agent override removed")
+                            st.rerun()
+    else:
+        st.info("No agent-specific overrides configured")
+
+    # Add new agent override
+    if agents:
+        st.write("**Add Agent Override:**")
+        with st.form("add_agent_override"):
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                selected_agent = st.selectbox(
+                    "Select Agent",
+                    options=agents,
+                    format_func=lambda x: x['name']
+                )
+
+            with col2:
+                agent_new = st.number_input("New Business (%)", 0.0, 100.0, 50.0, 5.0, key="agent_new")
+
+            with col3:
+                agent_renewal = st.number_input("Renewal (%)", 0.0, 100.0, 40.0, 5.0, key="agent_renewal")
+
+            with col4:
+                agent_service = st.number_input("Service (%)", 0.0, 100.0, 30.0, 5.0, key="agent_service")
+
+            submit_agent = st.form_submit_button("➕ Add Agent Override")
+
+            if submit_agent and selected_agent:
+                new_override = {
+                    'agent_id': selected_agent['id'],
+                    'agent_name': selected_agent['name'],
+                    'new_business': agent_new,
+                    'renewal': agent_renewal,
+                    'service': agent_service
+                }
+
+                agent_overrides.append(new_override)
+                new_rules = {**commission_rules, 'agent_overrides': agent_overrides}
+
+                if save_commission_rules(agency_id, new_rules):
+                    st.success(f"✅ Added override for {selected_agent['name']}")
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to add agent override")
+    else:
+        st.info("No agents available. Add agents in Team Management first.")
+
+
+def load_commission_rules(agency_id: str) -> Dict:
+    """Load commission rules for an agency."""
+    try:
+        supabase = get_supabase_client()
+
+        result = supabase.table('agencies')\
+            .select('commission_rules')\
+            .eq('id', agency_id)\
+            .execute()
+
+        if result.data and len(result.data) > 0:
+            rules = result.data[0].get('commission_rules')
+            if rules:
+                return rules
+
+        # Return default structure
+        return {
+            'default_splits': {
+                'new_business': 50.0,
+                'renewal': 40.0,
+                'service': 30.0
+            },
+            'carrier_overrides': [],
+            'agent_overrides': []
+        }
+    except Exception as e:
+        st.error(f"Error loading commission rules: {e}")
+        return {
+            'default_splits': {
+                'new_business': 50.0,
+                'renewal': 40.0,
+                'service': 30.0
+            },
+            'carrier_overrides': [],
+            'agent_overrides': []
+        }
+
+
+def save_commission_rules(agency_id: str, rules: Dict) -> bool:
+    """Save commission rules to database."""
+    try:
+        supabase = get_supabase_client()
+
+        result = supabase.table('agencies')\
+            .update({
+                'commission_rules': rules,
+                'updated_at': datetime.now().isoformat()
+            })\
+            .eq('id', agency_id)\
+            .execute()
+
+        return bool(result.data)
+    except Exception as e:
+        st.error(f"Error saving commission rules: {e}")
+        return False
+
+
+def get_agency_agents_for_rules(agency_id: str) -> list:
+    """Get list of agents for commission override selection."""
+    try:
+        supabase = get_supabase_client()
+
+        result = supabase.table('agents')\
+            .select('id, name')\
+            .eq('agency_id', agency_id)\
+            .eq('is_active', True)\
+            .execute()
+
+        if result.data:
+            return result.data
+        return []
+    except Exception as e:
+        return []
 
 
 # Main execution
