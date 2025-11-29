@@ -6910,7 +6910,8 @@ def main():
     if demo_mode or is_agency_account(user_email) or is_agency_owner:
         navigation_pages.insert(1, "🏢 Agency Dashboard")  # After Dashboard
         navigation_pages.insert(2, "👥 Team Management")  # After Agency Dashboard
-        navigation_pages.insert(3, "🔗 Integrations")  # After Team Management
+        navigation_pages.insert(3, "💳 Agency Reconciliation")  # After Team Management
+        navigation_pages.insert(4, "🔗 Integrations")  # After Reconciliation
 
     page = st.sidebar.radio(
         "Navigation",
@@ -7399,6 +7400,13 @@ def main():
         sys.path.append(os.path.dirname(os.path.abspath(__file__)))
         from pages.team_management import show_team_management
         show_team_management()
+
+    # --- Agency Reconciliation ---
+    elif page == "💳 Agency Reconciliation":
+        import sys
+        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+        from pages.agency_reconciliation import show_agency_reconciliation
+        show_agency_reconciliation()
 
     # --- Integrations ---
     elif page == "🔗 Integrations":
