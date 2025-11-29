@@ -14,7 +14,10 @@ import streamlit as st
 import pandas as pd
 import sys
 import os
+import time
 from datetime import datetime
+from uuid import uuid4
+from typing import Dict, List, Tuple
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -32,6 +35,12 @@ from utils.agent_assignment_logic import (
     bulk_assign_transactions,
     get_assignment_mode,
     get_unassigned_count
+)
+
+from utils.agency_statement_matcher import (
+    process_statement_with_agent_attribution,
+    create_stmt_entry,
+    create_new_transaction
 )
 
 st.set_page_config(
@@ -373,34 +382,304 @@ def show_mapping_step(agency_id: str):
 
 
 def show_review_step(agency_id: str):
-    """Step 4: Review and import."""
+    """Step 4: Review matched/unmatched transactions and import."""
+    st.subheader("📋 Step 4: Review & Import")
 
-    st.subheader("👀 Step 4: Review & Import")
+    # Get required session data
+    if 'uploaded_df' not in st.session_state or 'column_mapping' not in st.session_state:
+        st.error("Missing upload or mapping data. Please start from Step 1.")
+        if st.button("← Back to Step 1"):
+            st.session_state.recon_step = 1
+            st.rerun()
+        return
 
-    st.info("🚧 Review and import functionality coming soon!")
-    st.write("This will show:")
-    st.write("- Matched transactions (with confidence scores)")
-    st.write("- Unmatched transactions (for manual assignment)")
-    st.write("- Agent assignment review")
-    st.write("- Final import button")
+    df = st.session_state.uploaded_df
+    column_mapping = st.session_state.column_mapping
+    assignment_mode = st.session_state.get('assignment_mode', 'manual')
+    selected_agent_id = st.session_state.get('selected_agent_id')
+
+    # Initialize session state for matches
+    if 'agency_matched_transactions' not in st.session_state:
+        with st.spinner("🔍 Matching transactions..."):
+            # Process and match transactions
+            matched, unmatched, to_create = process_statement_with_agent_attribution(
+                df,
+                column_mapping,
+                agency_id,
+                assignment_mode,
+                selected_agent_id
+            )
+
+            st.session_state.agency_matched_transactions = matched
+            st.session_state.agency_unmatched_transactions = unmatched
+            st.session_state.agency_to_create = to_create
+
+    matched = st.session_state.agency_matched_transactions
+    unmatched = st.session_state.agency_unmatched_transactions
+    to_create = st.session_state.agency_to_create
+
+    # Summary metrics
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("✅ Matched", len(matched))
+    with col2:
+        st.metric("❓ Unmatched", len(unmatched))
+    with col3:
+        st.metric("➕ To Create", len(to_create))
+    with col4:
+        unassigned = sum(1 for t in unmatched if not t.get('assigned_agent_id'))
+        st.metric("⚠️ Needs Assignment", unassigned)
+
+    if unassigned > 0:
+        st.warning(f"⚠️ {unassigned} transaction(s) need agent assignment before import")
+
+    st.divider()
+
+    # Tabs for different views
+    tab1, tab2 = st.tabs(["✅ Matched Transactions", "❓ Unmatched Transactions"])
+
+    with tab1:
+        show_matched_tab(matched, agency_id)
+
+    with tab2:
+        show_unmatched_tab(unmatched, agency_id)
+
+    st.divider()
+
+    # Import button
+    all_assigned = unassigned == 0
+
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if all_assigned:
+            if st.button("📥 Import All Transactions", type="primary", use_container_width=True):
+                with st.spinner("Importing transactions..."):
+                    success, message, count = import_agency_transactions(
+                        matched,
+                        unmatched,
+                        agency_id,
+                        st.session_state.get('user_id', 'demo-user')
+                    )
+
+                    if success:
+                        st.success(f"✅ {message}")
+                        st.balloons()
+
+                        # Clear session state
+                        clear_agency_recon_session()
+
+                        # Reset to step 1
+                        time.sleep(2)
+                        st.session_state.recon_step = 1
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {message}")
+        else:
+            st.info("👆 Please assign agents to all unmatched transactions before importing")
 
     # Navigation
-    col1, col2, col3 = st.columns([1, 1, 1])
-
+    st.divider()
+    col1, col2, col3 = st.columns(3)
     with col1:
         if st.button("← Back to Mapping", use_container_width=True):
             st.session_state.recon_step = 3
             st.rerun()
-
     with col2:
-        if st.button("🔄 Start Over", use_container_width=True):
-            # Clear session state
-            for key in ['recon_step', 'uploaded_df', 'uploaded_filename', 'assignment_mode',
-                       'selected_agent_id', 'agents_list', 'column_mapping']:
+        if st.button("🔄 Re-process Matches", use_container_width=True):
+            # Clear matches and re-process
+            for key in ['agency_matched_transactions', 'agency_unmatched_transactions', 'agency_to_create']:
                 if key in st.session_state:
                     del st.session_state[key]
+            st.rerun()
+    with col3:
+        if st.button("🔁 Start Over", use_container_width=True):
+            clear_agency_recon_session()
             st.session_state.recon_step = 1
             st.rerun()
+
+
+def show_matched_tab(matched: List[Dict], agency_id: str):
+    """Show matched transactions with agent info."""
+    if not matched:
+        st.info("No matched transactions. All transactions are new.")
+        return
+
+    st.write(f"**{len(matched)} transactions matched to existing policies**")
+    st.write("These will create -STMT- reconciliation entries.")
+
+    # Get agent names
+    agent_names = get_agent_name_map(agency_id)
+
+    # Create display dataframe
+    display_data = []
+    for m in matched:
+        display_data.append({
+            'Customer': m['customer'],
+            'Policy': m['policy_number'],
+            'Amount': m['amount'],
+            'Matched To': m['match'].get('Transaction ID', 'N/A'),
+            'Agent': agent_names.get(m['matched_agent_id'], 'Unknown'),
+            'Confidence': f"{m['confidence']}%",
+            'Match Type': m['match_type']
+        })
+
+    df = pd.DataFrame(display_data)
+    st.dataframe(
+        df,
+        column_config={
+            'Amount': st.column_config.NumberColumn(format="$%.2f")
+        },
+        use_container_width=True,
+        hide_index=True
+    )
+
+
+def show_unmatched_tab(unmatched: List[Dict], agency_id: str):
+    """Show unmatched transactions with agent assignment."""
+    if not unmatched:
+        st.success("✅ All transactions were matched!")
+        return
+
+    st.write(f"**{len(unmatched)} new transactions to create**")
+    st.write("Assign these to agents, then import.")
+
+    # Get agents list
+    agents = st.session_state.get('agents_list', [])
+    if not agents:
+        st.error("No agents found")
+        return
+
+    agent_names = get_agent_name_map(agency_id)
+
+    # Show each unmatched transaction
+    for idx, trans in enumerate(unmatched):
+        with st.expander(f"**{trans['customer']}** - {trans['policy_number']} (${trans['amount']:.2f})"):
+            col1, col2 = st.columns([3, 2])
+
+            with col1:
+                st.write(f"**Customer**: {trans['customer']}")
+                st.write(f"**Policy**: {trans['policy_number']}")
+                st.write(f"**Date**: {trans['effective_date']}")
+                st.write(f"**Amount**: ${trans['amount']:.2f}")
+
+                if trans.get('carrier'):
+                    st.write(f"**Carrier**: {trans['carrier']}")
+                if trans.get('policy_type'):
+                    st.write(f"**Type**: {trans['policy_type']}")
+
+            with col2:
+                # Show assignment status
+                current_agent_id = trans.get('assigned_agent_id')
+                assignment_method = trans.get('assignment_method', 'manual')
+
+                if current_agent_id:
+                    st.success(f"✅ Assigned: {agent_names.get(current_agent_id, 'Unknown')}")
+                    st.caption(f"Method: {assignment_method}")
+                else:
+                    st.warning("⚠️ Not assigned")
+
+                # Agent assignment dropdown
+                selected_agent = st.selectbox(
+                    "Assign to Agent",
+                    options=[a['id'] for a in agents],
+                    format_func=lambda x: agent_names.get(x, next((a['name'] for a in agents if a['id'] == x), 'Unknown')),
+                    index=[a['id'] for a in agents].index(current_agent_id) if current_agent_id and current_agent_id in [a['id'] for a in agents] else 0,
+                    key=f"agent_assign_{idx}"
+                )
+
+                # Update assignment
+                if selected_agent != current_agent_id:
+                    trans['assigned_agent_id'] = selected_agent
+                    trans['assignment_method'] = 'manual_review'
+
+
+def import_agency_transactions(
+    matched: List[Dict],
+    unmatched: List[Dict],
+    agency_id: str,
+    user_id: str
+) -> Tuple[bool, str, int]:
+    """
+    Import matched and unmatched transactions with agent attribution.
+
+    Args:
+        matched: Matched transactions (will create -STMT- entries)
+        unmatched: Unmatched transactions (will create new policies)
+        agency_id: Agency ID
+        user_id: User ID
+
+    Returns:
+        Tuple of (success, message, count)
+    """
+    try:
+        supabase = get_supabase_client()
+        transactions_to_insert = []
+
+        # Generate reconciliation ID
+        reconciliation_id = str(uuid4())
+        stmt_date = datetime.now().strftime('%Y-%m-%d')
+
+        # Process matched transactions - create -STMT- entries
+        for matched_trans in matched:
+            original_policy = matched_trans['match']
+            agent_id = matched_trans['matched_agent_id']
+
+            stmt_entry = create_stmt_entry(
+                original_policy,
+                matched_trans['amount'],
+                stmt_date,
+                reconciliation_id,
+                agent_id,
+                agency_id
+            )
+
+            stmt_entry['user_id'] = user_id
+            transactions_to_insert.append(stmt_entry)
+
+        # Process unmatched transactions - create new policies
+        for unmatched_trans in unmatched:
+            agent_id = unmatched_trans['assigned_agent_id']
+
+            if not agent_id:
+                return False, "Some transactions are not assigned to agents", 0
+
+            new_trans = create_new_transaction(
+                unmatched_trans,
+                agent_id,
+                agency_id,
+                user_id
+            )
+
+            transactions_to_insert.append(new_trans)
+
+        # Bulk insert
+        if transactions_to_insert:
+            result = supabase.table('policies').insert(transactions_to_insert).execute()
+
+            if result.data:
+                count = len(result.data)
+                return True, f"Successfully imported {count} transactions ({len(matched)} -STMT- entries, {len(unmatched)} new policies)", count
+            else:
+                return False, "Failed to insert transactions", 0
+        else:
+            return False, "No transactions to import", 0
+
+    except Exception as e:
+        return False, f"Error importing: {str(e)}", 0
+
+
+def clear_agency_recon_session():
+    """Clear agency reconciliation session state."""
+    keys_to_clear = [
+        'uploaded_df', 'uploaded_filename', 'assignment_mode',
+        'selected_agent_id', 'agents_list', 'column_mapping',
+        'agency_matched_transactions', 'agency_unmatched_transactions',
+        'agency_to_create'
+    ]
+
+    for key in keys_to_clear:
+        if key in st.session_state:
+            del st.session_state[key]
 
 
 # Main execution
