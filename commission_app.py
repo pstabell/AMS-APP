@@ -22802,16 +22802,388 @@ CREATE TABLE IF NOT EXISTS deleted_policies (
             st.info("No recent activity")
 
     elif page == "💰 My Commissions":
-        # Agent commission statements
+        # Agent commission statements (Task 2.1: Personal Commission Statement Viewer)
+        from utils.agent_data_helpers import (
+            get_agent_commission_statements,
+            get_agent_commission_summary,
+            get_commission_by_carrier_for_agent,
+            get_commission_monthly_trends_for_agent,
+            export_commission_statement_to_csv,
+            export_commission_statement_to_pdf
+        )
+        import plotly.express as px
+        import plotly.graph_objects as go
+
         st.title("💰 My Commission Statements")
-        st.info("🚧 **Commission Statements** coming in Sprint 2!")
-        st.markdown("""
-        ### Features:
-        - View all your commission transactions
-        - Filter by carrier, date range, policy type
-        - Export to PDF or Excel
-        - See pending vs received commissions
-        """)
+
+        agent_id = st.session_state.get('agent_id')
+        agent_name = st.session_state.get('agent_name', 'Agent')
+        agency_name = st.session_state.get('agency_name', 'Agency')
+
+        if not agent_id:
+            st.error("Agent ID not found. Please contact support.")
+            st.stop()
+
+        # Year selector
+        current_year = datetime.now().year
+        col1, col2 = st.columns([3, 1])
+        with col2:
+            selected_year = st.selectbox(
+                "Year",
+                options=[current_year, current_year - 1, current_year - 2],
+                key="commission_year_selector"
+            )
+
+        # Get summary metrics
+        summary = get_agent_commission_summary(agent_id, selected_year)
+
+        # Summary metrics row
+        st.markdown("### 📊 Commission Summary")
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.metric(
+                "Total Received",
+                f"${summary['total_received']:,.0f}",
+                delta=None
+            )
+
+        with col2:
+            st.metric(
+                "Total Pending",
+                f"${summary['total_pending']:,.0f}",
+                delta=None
+            )
+
+        with col3:
+            st.metric(
+                "YTD Total",
+                f"${summary['total_ytd']:,.0f}",
+                delta=None
+            )
+
+        with col4:
+            st.metric(
+                "Avg per Policy",
+                f"${summary['avg_commission']:,.0f}",
+                delta=None
+            )
+
+        st.markdown("---")
+
+        # Charts section
+        st.markdown("### 📈 Commission Analytics")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            # Monthly trends chart
+            st.markdown("#### Monthly Commission Trends")
+            monthly_data = get_commission_monthly_trends_for_agent(agent_id, months=12)
+
+            if not monthly_data.empty:
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
+                    name='Received',
+                    x=monthly_data['month'],
+                    y=monthly_data['commission_received'],
+                    marker_color='#28a745'
+                ))
+                fig.add_trace(go.Bar(
+                    name='Pending',
+                    x=monthly_data['month'],
+                    y=monthly_data['commission_pending'],
+                    marker_color='#ffc107'
+                ))
+                fig.update_layout(
+                    barmode='stack',
+                    height=300,
+                    margin=dict(l=0, r=0, t=20, b=0),
+                    xaxis_title="Month",
+                    yaxis_title="Commission ($)",
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("No monthly data available")
+
+        with col2:
+            # Commission by carrier chart
+            st.markdown("#### Commission by Carrier")
+            carrier_data = get_commission_by_carrier_for_agent(agent_id, selected_year)
+
+            if not carrier_data.empty:
+                # Show top 5 carriers
+                top_carriers = carrier_data.head(5)
+
+                fig = px.pie(
+                    top_carriers,
+                    values='total_commission',
+                    names='carrier',
+                    hole=0.4
+                )
+                fig.update_layout(
+                    height=300,
+                    margin=dict(l=0, r=0, t=20, b=0),
+                    legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("No carrier data available")
+
+        st.markdown("---")
+
+        # Filters section
+        st.markdown("### 🔍 Filter Commission Statements")
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            # Date range filter
+            start_date = st.date_input(
+                "Start Date",
+                value=datetime(selected_year, 1, 1),
+                key="commission_start_date"
+            )
+
+        with col2:
+            end_date = st.date_input(
+                "End Date",
+                value=datetime(selected_year, 12, 31),
+                key="commission_end_date"
+            )
+
+        with col3:
+            # Get unique carriers for filter
+            all_statements = get_agent_commission_statements(agent_id, year=selected_year)
+            carriers = ['All'] + sorted(all_statements['carrier'].unique().tolist()) if not all_statements.empty else ['All']
+            carrier_filter = st.selectbox(
+                "Carrier",
+                options=carriers,
+                key="commission_carrier_filter"
+            )
+
+        with col4:
+            status_filter = st.selectbox(
+                "Status",
+                options=['All', 'Received', 'Pending'],
+                key="commission_status_filter"
+            )
+
+        # Get filtered statements
+        filtered_statements = get_agent_commission_statements(
+            agent_id,
+            start_date=start_date.strftime('%Y-%m-%d'),
+            end_date=end_date.strftime('%Y-%m-%d'),
+            carrier_filter=carrier_filter if carrier_filter != 'All' else None,
+            status_filter=status_filter if status_filter != 'All' else None
+        )
+
+        # Commission statements table
+        st.markdown("### 📋 Commission Transactions")
+
+        if not filtered_statements.empty:
+            # Add download buttons (Task 2.2: Downloadable Reports)
+            col1, col2, col3 = st.columns([1, 1, 4])
+            with col1:
+                # Generate PDF
+                pdf_data = export_commission_statement_to_pdf(
+                    agent_id,
+                    agent_name,
+                    agency_name,
+                    filtered_statements,
+                    summary,
+                    selected_year
+                )
+                if pdf_data:
+                    st.download_button(
+                        label="📄 Export to PDF",
+                        data=pdf_data,
+                        file_name=f"commission_statement_{agent_name.replace(' ', '_')}_{selected_year}.txt",
+                        mime="text/plain",
+                        key="export_pdf_btn",
+                        help="Download commission statement as text file (PDF coming soon)"
+                    )
+            with col2:
+                # Generate CSV
+                csv_data = export_commission_statement_to_csv(
+                    agent_id,
+                    agent_name,
+                    filtered_statements
+                )
+                if csv_data:
+                    st.download_button(
+                        label="📊 Export to CSV",
+                        data=csv_data,
+                        file_name=f"commission_statement_{agent_name.replace(' ', '_')}_{selected_year}.csv",
+                        mime="text/csv",
+                        key="export_csv_btn",
+                        help="Download commission statement as CSV for Excel"
+                    )
+
+            # Format the dataframe for display
+            display_df = filtered_statements.copy()
+            display_df['date'] = display_df['date'].dt.strftime('%Y-%m-%d')
+            display_df['premium'] = display_df['premium'].apply(lambda x: f"${x:,.2f}")
+            display_df['commission'] = display_df['commission'].apply(lambda x: f"${x:,.2f}")
+
+            # Add status badge
+            display_df['status_badge'] = display_df['status'].apply(
+                lambda x: '✅ Received' if x == 'received' else '⏳ Pending'
+            )
+
+            # Reorder and rename columns
+            display_df = display_df[[
+                'date', 'customer', 'carrier', 'policy_type',
+                'premium', 'commission', 'status_badge', 'transaction_type'
+            ]]
+            display_df.columns = [
+                'Date', 'Customer', 'Carrier', 'Policy Type',
+                'Premium', 'Commission', 'Status', 'Transaction Type'
+            ]
+
+            # Display table
+            st.dataframe(
+                display_df,
+                use_container_width=True,
+                height=400,
+                hide_index=True
+            )
+
+            st.caption(f"Showing {len(display_df)} commission transactions")
+
+            # Commission Verification section (Task 2.3)
+            st.markdown("---")
+            st.markdown("### ✅ Commission Verification")
+
+            # Import verification functions
+            from utils.agent_data_helpers import (
+                submit_commission_verification,
+                get_agent_verification_requests,
+                get_verification_stats
+            )
+
+            # Get verification stats
+            verification_stats = get_verification_stats(agent_id, selected_year)
+
+            # Show verification stats
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Pending Verifications", verification_stats['total_pending'])
+            with col2:
+                st.metric("Verified", verification_stats['total_verified'])
+            with col3:
+                st.metric("Disputed Amount", f"${verification_stats['total_amount_disputed']:,.2f}")
+
+            # Flag discrepancy form
+            with st.expander("🚩 Flag a Commission Discrepancy"):
+                st.markdown("Use this form if you believe a commission amount is incorrect.")
+
+                with st.form("flag_discrepancy_form", clear_on_submit=True):
+                    # Select a policy from filtered statements
+                    if not filtered_statements.empty:
+                        policy_options = filtered_statements.apply(
+                            lambda row: f"{row['customer']} - {row['carrier']} - ${row['commission']:,.2f}",
+                            axis=1
+                        ).tolist()
+
+                        selected_policy_idx = st.selectbox(
+                            "Select Policy",
+                            options=range(len(policy_options)),
+                            format_func=lambda x: policy_options[x],
+                            key="verification_policy_select"
+                        )
+
+                        expected_commission = st.number_input(
+                            "Expected Commission Amount",
+                            min_value=0.0,
+                            step=10.0,
+                            key="expected_commission_input"
+                        )
+
+                        notes = st.text_area(
+                            "Notes (optional)",
+                            placeholder="Explain why you believe this commission is incorrect...",
+                            key="verification_notes_input"
+                        )
+
+                        submit_verification = st.form_submit_button("Submit Discrepancy Report", type="primary")
+
+                        if submit_verification:
+                            # Get selected policy details
+                            selected_policy = filtered_statements.iloc[selected_policy_idx]
+                            policy_id = selected_policy['policy_id']
+                            actual_commission = selected_policy['commission']
+
+                            if expected_commission == 0:
+                                st.error("Please enter the expected commission amount.")
+                            elif abs(expected_commission - actual_commission) < 0.01:
+                                st.warning("Expected and actual commissions are the same. No discrepancy to report.")
+                            else:
+                                # Submit verification request
+                                success, message = submit_commission_verification(
+                                    agent_id,
+                                    policy_id,
+                                    expected_commission,
+                                    actual_commission,
+                                    notes
+                                )
+
+                                if success:
+                                    st.success(f"✅ {message}")
+                                    st.info("Your agency owner will be notified to review this discrepancy.")
+                                else:
+                                    st.error(f"❌ {message}")
+                    else:
+                        st.info("No commission statements available to flag. Please adjust your filters.")
+
+            # Show existing verification requests
+            verification_requests = get_agent_verification_requests(agent_id)
+
+            if not verification_requests.empty:
+                st.markdown("#### Your Verification Requests")
+
+                # Format for display
+                display_verifications = verification_requests.copy()
+
+                # Format dates
+                if 'created_at' in display_verifications.columns:
+                    display_verifications['created_at'] = pd.to_datetime(display_verifications['created_at']).dt.strftime('%Y-%m-%d')
+
+                # Format amounts
+                if 'expected_commission' in display_verifications.columns:
+                    display_verifications['expected_commission'] = display_verifications['expected_commission'].apply(lambda x: f"${x:,.2f}")
+                if 'actual_commission' in display_verifications.columns:
+                    display_verifications['actual_commission'] = display_verifications['actual_commission'].apply(lambda x: f"${x:,.2f}")
+                if 'discrepancy_amount' in display_verifications.columns:
+                    display_verifications['discrepancy_amount'] = display_verifications['discrepancy_amount'].apply(lambda x: f"${x:,.2f}")
+
+                # Add status badge
+                if 'status' in display_verifications.columns:
+                    display_verifications['status_badge'] = display_verifications['status'].apply(
+                        lambda x: '⏳ Pending' if x == 'pending' else '✅ Verified' if x == 'verified' else '🚩 Disputed'
+                    )
+
+                # Select columns to display
+                display_cols = ['created_at', 'expected_commission', 'actual_commission', 'discrepancy_amount', 'status_badge', 'notes']
+                available_cols = [col for col in display_cols if col in display_verifications.columns]
+
+                if available_cols:
+                    display_verifications = display_verifications[available_cols]
+                    display_verifications.columns = [
+                        'Date', 'Expected', 'Actual', 'Discrepancy', 'Status', 'Notes'
+                    ] if len(available_cols) == 6 else available_cols
+
+                    st.dataframe(
+                        display_verifications,
+                        use_container_width=True,
+                        hide_index=True
+                    )
+            else:
+                st.info("No verification requests submitted yet.")
+
+        else:
+            st.info("No commission statements found for the selected filters.")
 
     elif page == "📋 My Policies":
         # Agent's policies
