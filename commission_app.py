@@ -22562,24 +22562,159 @@ CREATE TABLE IF NOT EXISTS deleted_policies (
 
     elif page == "📊 My Dashboard":
         # Agent personal dashboard
+        from utils.agent_data_helpers import (
+            get_agent_performance_metrics,
+            get_agent_rank,
+            get_agent_monthly_trends,
+            get_agent_carrier_breakdown,
+            get_agency_average_metrics,
+            get_agent_recent_activity
+        )
+        import plotly.express as px
+        import plotly.graph_objects as go
+
         st.title("📊 My Dashboard")
+
         agent_id = st.session_state.get('agent_id')
         agent_name = st.session_state.get('agent_name', 'Agent')
         agency_name = st.session_state.get('agency_name', 'Your Agency')
+        agency_id = st.session_state.get('agency_id')
 
-        st.write(f"**Welcome back, {agent_name}!**")
-        st.info(f"🏢 {agency_name}")
+        if not agent_id:
+            st.error("❌ Agent ID not found in session. Please log out and log back in.")
+            st.stop()
+
+        # Welcome header
+        st.markdown(f"### Welcome back, {agent_name}! 👋")
+        st.caption(f"🏢 {agency_name}")
+
+        # Year selector
+        col1, col2 = st.columns([3, 1])
+        with col2:
+            current_year = datetime.now().year
+            selected_year = st.selectbox("Year", [current_year, current_year - 1, current_year - 2], key="agent_dashboard_year")
 
         st.markdown("---")
-        st.info("🚧 **Agent Dashboard** is coming soon in Sprint 1, Task 1.2!")
-        st.markdown("""
-        ### What You'll See Here:
-        - 📊 Your personal performance metrics
-        - 💰 YTD commission earnings
-        - 📈 Monthly trends and goals
-        - 🏆 Your current rank
-        - 🎯 Progress toward goals
-        """)
+
+        # Get performance data
+        with st.spinner("Loading your performance data..."):
+            metrics = get_agent_performance_metrics(agent_id, selected_year)
+            rank_info = get_agent_rank(agent_id, agency_id, selected_year)
+            agency_avg = get_agency_average_metrics(agency_id, selected_year)
+
+        # Rank badge at top
+        rank = rank_info['rank']
+        total_agents = rank_info['total_agents']
+        percentile = rank_info['percentile']
+
+        # Display rank badge
+        rank_emoji = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else "🏆"
+        st.info(f"{rank_emoji} **Your Rank:** #{rank} of {total_agents} agents (Top {percentile:.0f}%)")
+
+        st.markdown("---")
+
+        # Key metrics row
+        st.markdown("### 📊 Your Performance (YTD)")
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.metric(
+                "Premium Written",
+                f"${metrics['premium_ytd']:,.0f}",
+                delta=f"vs. avg: ${metrics['premium_ytd'] - agency_avg['avg_premium']:,.0f}"
+            )
+
+        with col2:
+            st.metric(
+                "Commission Earned",
+                f"${metrics['commission_ytd']:,.0f}",
+                delta=f"vs. avg: ${metrics['commission_ytd'] - agency_avg['avg_commission']:,.0f}"
+            )
+
+        with col3:
+            st.metric(
+                "Policies Written",
+                f"{metrics['policies_count']:,}",
+                delta=f"vs. avg: {int(metrics['policies_count'] - agency_avg['avg_policies'])}"
+            )
+
+        with col4:
+            st.metric(
+                "Avg Premium/Policy",
+                f"${metrics['avg_premium_per_policy']:,.0f}"
+            )
+
+        st.markdown("---")
+
+        # Charts section
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("### 📈 Monthly Premium Trends")
+            monthly_data = get_agent_monthly_trends(agent_id, months=6)
+
+            if not monthly_data.empty:
+                fig = px.line(
+                    monthly_data,
+                    x='month',
+                    y='premium',
+                    title='Premium by Month (Last 6 Months)',
+                    labels={'month': 'Month', 'premium': 'Premium ($)'}
+                )
+                fig.update_traces(line_color='#1f77b4', line_width=3)
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("No monthly data available yet")
+
+        with col2:
+            st.markdown("### 🏢 Commission by Carrier")
+            carrier_data = get_agent_carrier_breakdown(agent_id, selected_year)
+
+            if not carrier_data.empty:
+                # Top 5 carriers
+                top_carriers = carrier_data.head(5)
+                fig = px.pie(
+                    top_carriers,
+                    values='commission',
+                    names='carrier',
+                    title='Top 5 Carriers by Commission'
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("No carrier data available yet")
+
+        st.markdown("---")
+
+        # Comparison to agency average
+        st.markdown("### 📊 Comparison to Agency Average")
+
+        comparison_data = pd.DataFrame({
+            'Metric': ['Premium', 'Commission', 'Policies'],
+            'You': [metrics['premium_ytd'], metrics['commission_ytd'], metrics['policies_count']],
+            'Agency Avg': [agency_avg['avg_premium'], agency_avg['avg_commission'], agency_avg['avg_policies']]
+        })
+
+        fig = go.Figure(data=[
+            go.Bar(name='You', x=comparison_data['Metric'], y=comparison_data['You'], marker_color='#1f77b4'),
+            go.Bar(name='Agency Average', x=comparison_data['Metric'], y=comparison_data['Agency Avg'], marker_color='#ff7f0e')
+        ])
+        fig.update_layout(barmode='group', title='Your Performance vs. Agency Average')
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown("---")
+
+        # Recent activity
+        st.markdown("### 🔔 Recent Activity")
+
+        recent_activities = get_agent_recent_activity(agent_id, limit=5)
+
+        if recent_activities:
+            for activity in recent_activities:
+                date_str = activity['date'][:10] if activity['date'] else 'Unknown date'
+                st.markdown(f"- **{date_str}**: {activity['description']} - ${activity['amount']:,.0f}")
+        else:
+            st.info("No recent activity")
 
     elif page == "💰 My Commissions":
         # Agent commission statements
