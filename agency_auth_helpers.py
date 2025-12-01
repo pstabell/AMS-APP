@@ -164,14 +164,20 @@ def create_agency_account(agency_name: str, owner_name: str, email: str, passwor
         return False, str(e)
 
 
-def check_if_agency_owner(user_email: str, supabase: Client = None) -> dict:
+def get_user_role(user_email: str, supabase: Client = None) -> dict:
     """
-    Check if the logged-in user is an agency owner.
+    Determine the user's role: agency_owner, agent, or solo_agent.
+
+    This is the primary authentication function for Phase 2 that routes users
+    to the appropriate dashboard based on their role.
 
     Returns: {
-        'is_agency_owner': bool,
+        'role': 'agency_owner' | 'agent' | 'solo_agent',
+        'user_id': str,
         'agency_id': str or None,
-        'agency_name': str or None
+        'agent_id': str or None,
+        'agency_name': str or None,
+        'agent_name': str or None
     }
     """
     try:
@@ -181,29 +187,97 @@ def check_if_agency_owner(user_email: str, supabase: Client = None) -> dict:
             supabase = create_client(url, key)
 
         # Get user_id from email
-        user_result = supabase.table('users').select('id').eq('email', user_email.lower()).execute()
+        user_result = supabase.table('users').select('id, full_name').eq('email', user_email.lower()).execute()
 
         if not user_result.data:
-            return {'is_agency_owner': False, 'agency_id': None, 'agency_name': None}
+            return {
+                'role': 'solo_agent',
+                'user_id': None,
+                'agency_id': None,
+                'agent_id': None,
+                'agency_name': None,
+                'agent_name': None
+            }
 
         user_id = user_result.data[0]['id']
+        user_name = user_result.data[0].get('full_name', '')
 
-        # Check if user owns an agency
+        # Check if user owns an agency (agency_owner role)
         agency_result = supabase.table('agencies').select('id, agency_name').eq('owner_user_id', user_id).execute()
 
         if agency_result.data and len(agency_result.data) > 0:
             agency = agency_result.data[0]
             return {
-                'is_agency_owner': True,
+                'role': 'agency_owner',
+                'user_id': user_id,
                 'agency_id': agency['id'],
-                'agency_name': agency['agency_name']
+                'agent_id': None,
+                'agency_name': agency['agency_name'],
+                'agent_name': user_name
             }
 
-        return {'is_agency_owner': False, 'agency_id': None, 'agency_name': None}
+        # Check if user is an agent in an agency (agent role)
+        agent_result = supabase.table('agents').select('id, agency_id, full_name, is_active').eq('user_id', user_id).execute()
+
+        if agent_result.data and len(agent_result.data) > 0:
+            agent = agent_result.data[0]
+
+            # Get agency name
+            agency_info = supabase.table('agencies').select('agency_name').eq('id', agent['agency_id']).execute()
+            agency_name = agency_info.data[0]['agency_name'] if agency_info.data else None
+
+            return {
+                'role': 'agent',
+                'user_id': user_id,
+                'agency_id': agent['agency_id'],
+                'agent_id': agent['id'],
+                'agency_name': agency_name,
+                'agent_name': agent.get('full_name', user_name),
+                'is_active': agent.get('is_active', True)
+            }
+
+        # Default: solo agent (no agency affiliation)
+        return {
+            'role': 'solo_agent',
+            'user_id': user_id,
+            'agency_id': None,
+            'agent_id': None,
+            'agency_name': None,
+            'agent_name': user_name
+        }
 
     except Exception as e:
-        print(f"Error checking agency owner status: {e}")
-        return {'is_agency_owner': False, 'agency_id': None, 'agency_name': None}
+        print(f"Error determining user role: {e}")
+        return {
+            'role': 'solo_agent',
+            'user_id': None,
+            'agency_id': None,
+            'agent_id': None,
+            'agency_name': None,
+            'agent_name': None
+        }
+
+
+def check_if_agency_owner(user_email: str, supabase: Client = None) -> dict:
+    """
+    Check if the logged-in user is an agency owner.
+
+    DEPRECATED: Use get_user_role() instead for Phase 2.
+    This function is kept for backward compatibility with Phase 1 code.
+
+    Returns: {
+        'is_agency_owner': bool,
+        'agency_id': str or None,
+        'agency_name': str or None
+    }
+    """
+    role_info = get_user_role(user_email, supabase)
+
+    return {
+        'is_agency_owner': role_info['role'] == 'agency_owner',
+        'agency_id': role_info['agency_id'],
+        'agency_name': role_info['agency_name']
+    }
 
 
 def show_agency_onboarding_wizard():

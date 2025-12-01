@@ -6787,16 +6787,29 @@ def main():
         show_agency_onboarding_wizard()
         st.stop()
 
-    # Check if user is agency owner and set session state
-    if 'is_agency_owner' not in st.session_state:
+    # Check user role (agency owner, agent, or solo agent) and set session state
+    if 'role' not in st.session_state or 'is_agency_owner' not in st.session_state:
         user_email = st.session_state.get('user_email')
         if user_email:
-            from agency_auth_helpers import check_if_agency_owner
-            agency_info = check_if_agency_owner(user_email)
-            st.session_state['is_agency_owner'] = agency_info['is_agency_owner']
-            if agency_info['is_agency_owner']:
-                st.session_state['agency_id'] = agency_info['agency_id']
-                st.session_state['agency_name'] = agency_info['agency_name']
+            from agency_auth_helpers import get_user_role
+            role_info = get_user_role(user_email)
+
+            # Set all role-related session state variables
+            st.session_state['role'] = role_info['role']
+            st.session_state['user_id'] = role_info['user_id']
+            st.session_state['agency_id'] = role_info['agency_id']
+            st.session_state['agent_id'] = role_info['agent_id']
+            st.session_state['agency_name'] = role_info['agency_name']
+            st.session_state['agent_name'] = role_info.get('agent_name', '')
+
+            # Set backward-compatible flags
+            st.session_state['is_agency_owner'] = (role_info['role'] == 'agency_owner')
+            st.session_state['is_agent'] = (role_info['role'] == 'agent')
+            st.session_state['is_solo_agent'] = (role_info['role'] == 'solo_agent')
+
+            # For agents, check if active
+            if role_info['role'] == 'agent':
+                st.session_state['agent_is_active'] = role_info.get('is_active', True)
 
     # Add mobile session debug tracking
     if 'page_loads' not in st.session_state:
@@ -6883,36 +6896,55 @@ def main():
     st.sidebar.divider()
 
     # --- Page Selection ---
-    # Add agency pages if in demo mode or if user is an agency
+    # Build navigation menu based on user role (Phase 2)
     from utils.agency_utils import is_agency_account
 
-    navigation_pages = [
-        "Dashboard",
-        "Reports",
-        "All Policy Transactions",
-        "Edit Policy Transactions",
-        "Add New Policy Transaction",
-        "Search & Filter",
-        "Reconciliation",
-        "Admin Panel",
-        "Contacts",
-        "Tools",
-        "Policy Revenue Ledger",
-        "Policy Revenue Ledger Reports",
-        "Pending Policy Renewals",
-        "Account",
-        "Help"
-    ]
-
-    # Add agency pages if applicable
-    user_email = st.session_state.get('user_email', '')
+    # Get user role
+    user_role = st.session_state.get('role', 'solo_agent')
     is_agency_owner = st.session_state.get('is_agency_owner', False)
-    if demo_mode or is_agency_account(user_email) or is_agency_owner:
-        navigation_pages.insert(1, "🏢 Agency Dashboard")  # After Dashboard
-        navigation_pages.insert(2, "👥 Team Management")  # After Agency Dashboard
-        navigation_pages.insert(3, "💳 Agency Reconciliation")  # After Team Management
-        navigation_pages.insert(4, "⚙️ Agency Settings")  # After Reconciliation
-        navigation_pages.insert(5, "🔗 Integrations")  # After Settings
+    is_agent = st.session_state.get('is_agent', False)
+    user_email = st.session_state.get('user_email', '')
+
+    # Base navigation pages for all users
+    if is_agent:
+        # Agent-specific navigation (Phase 2)
+        navigation_pages = [
+            "📊 My Dashboard",  # Agent personal dashboard
+            "💰 My Commissions",  # Agent commission statements
+            "📋 My Policies",  # Agent's policies
+            "🏆 Leaderboard",  # See rankings
+            "🎯 Goals & Badges",  # Gamification
+            "🔔 Notifications",  # Agent notifications
+            "Account",
+            "Help"
+        ]
+    else:
+        # Solo agent or agency owner - standard navigation
+        navigation_pages = [
+            "Dashboard",
+            "Reports",
+            "All Policy Transactions",
+            "Edit Policy Transactions",
+            "Add New Policy Transaction",
+            "Search & Filter",
+            "Reconciliation",
+            "Admin Panel",
+            "Contacts",
+            "Tools",
+            "Policy Revenue Ledger",
+            "Policy Revenue Ledger Reports",
+            "Pending Policy Renewals",
+            "Account",
+            "Help"
+        ]
+
+        # Add agency owner pages if applicable
+        if demo_mode or is_agency_account(user_email) or is_agency_owner:
+            navigation_pages.insert(1, "🏢 Agency Dashboard")  # After Dashboard
+            navigation_pages.insert(2, "👥 Team Management")  # After Agency Dashboard
+            navigation_pages.insert(3, "💳 Agency Reconciliation")  # After Team Management
+            navigation_pages.insert(4, "⚙️ Agency Settings")  # After Reconciliation
+            navigation_pages.insert(5, "🔗 Integrations")  # After Settings
 
     page = st.sidebar.radio(
         "Navigation",
@@ -22521,8 +22553,101 @@ CREATE TABLE IF NOT EXISTS deleted_policies (
             else:
                 st.info(f"No policies match the selected filter: {filter_option}")
                 st.caption("Try selecting 'All Renewals' or a different time range.")
-    
+
         display_app_footer()
+
+    # ============================================
+    # PHASE 2: AGENT-SPECIFIC PAGES
+    # ============================================
+
+    elif page == "📊 My Dashboard":
+        # Agent personal dashboard
+        st.title("📊 My Dashboard")
+        agent_id = st.session_state.get('agent_id')
+        agent_name = st.session_state.get('agent_name', 'Agent')
+        agency_name = st.session_state.get('agency_name', 'Your Agency')
+
+        st.write(f"**Welcome back, {agent_name}!**")
+        st.info(f"🏢 {agency_name}")
+
+        st.markdown("---")
+        st.info("🚧 **Agent Dashboard** is coming soon in Sprint 1, Task 1.2!")
+        st.markdown("""
+        ### What You'll See Here:
+        - 📊 Your personal performance metrics
+        - 💰 YTD commission earnings
+        - 📈 Monthly trends and goals
+        - 🏆 Your current rank
+        - 🎯 Progress toward goals
+        """)
+
+    elif page == "💰 My Commissions":
+        # Agent commission statements
+        st.title("💰 My Commission Statements")
+        st.info("🚧 **Commission Statements** coming in Sprint 2!")
+        st.markdown("""
+        ### Features:
+        - View all your commission transactions
+        - Filter by carrier, date range, policy type
+        - Export to PDF or Excel
+        - See pending vs received commissions
+        """)
+
+    elif page == "📋 My Policies":
+        # Agent's policies
+        st.title("📋 My Policies")
+        agent_id = st.session_state.get('agent_id')
+
+        st.info("🚧 **My Policies** view coming soon!")
+        st.markdown("""
+        ### What You'll See:
+        - All policies you've written
+        - Filter by status, carrier, policy type
+        - Search for specific policies
+        - Renewal tracking
+        """)
+
+    elif page == "🏆 Leaderboard":
+        # Agent leaderboard
+        st.title("🏆 Agency Leaderboard")
+        agency_name = st.session_state.get('agency_name', 'Your Agency')
+
+        st.write(f"**{agency_name} Rankings**")
+        st.info("🚧 **Leaderboard** coming in Sprint 3!")
+        st.markdown("""
+        ### See How You Stack Up:
+        - 🥇 Top producers by premium
+        - 📊 Rankings by policies written
+        - 📈 Month-over-month growth
+        - 🎯 Team performance metrics
+        """)
+
+    elif page == "🎯 Goals & Badges":
+        # Gamification page
+        st.title("🎯 Goals & Badges")
+        agent_name = st.session_state.get('agent_name', 'Agent')
+
+        st.write(f"**{agent_name}'s Achievements**")
+        st.info("🚧 **Gamification** coming in Sprint 3!")
+        st.markdown("""
+        ### Your Achievements:
+        - 🏅 Earned badges
+        - 🎯 Active goals
+        - 🔥 Writing streaks
+        - ⭐ Milestones reached
+        """)
+
+    elif page == "🔔 Notifications":
+        # Agent notifications
+        st.title("🔔 Notifications")
+        st.info("🚧 **Notifications** coming in Sprint 5!")
+        st.markdown("""
+        ### Stay Updated:
+        - 📢 Agency announcements
+        - 🎉 Achievement notifications
+        - 📋 Policy updates
+        - 💰 Commission received alerts
+        """)
 
 # Call main function
 main()
