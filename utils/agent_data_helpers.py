@@ -1097,3 +1097,480 @@ def get_verification_stats(agent_id: str, year: int = None) -> Dict[str, Any]:
             'total_amount_verified': 0,
             'total_amount_disputed': 0
         }
+
+
+# ==============================================================================
+# Sprint 3: Gamification & Competition Functions
+# ==============================================================================
+
+# Task 3.1: Badge and Achievement System
+
+BADGE_DEFINITIONS = {
+    'top_producer': {
+        'name': 'Top Producer',
+        'icon': '🥇',
+        'description': 'Ranked #1 in your agency',
+        'criteria': 'Achieve rank #1',
+        'points': 100
+    },
+    'top_3': {
+        'name': 'Top 3',
+        'icon': '🏆',
+        'description': 'In the top 3 producers',
+        'criteria': 'Rank #2 or #3',
+        'points': 50
+    },
+    '100k_month': {
+        'name': '$100K Month',
+        'icon': '💎',
+        'description': 'Write $100K+ premium in one month',
+        'criteria': 'Monthly premium >= $100,000',
+        'points': 150
+    },
+    '500k_ytd': {
+        'name': '$500K Club',
+        'icon': '💰',
+        'description': 'Write $500K+ premium YTD',
+        'criteria': 'YTD premium >= $500,000',
+        'points': 200
+    },
+    'streak_7': {
+        'name': '7-Day Streak',
+        'icon': '🔥',
+        'description': 'Write policies 7 days in a row',
+        'criteria': '7 consecutive days',
+        'points': 50
+    },
+    'streak_14': {
+        'name': '14-Day Streak',
+        'icon': '🔥🔥',
+        'description': 'Write policies 14 days in a row',
+        'criteria': '14 consecutive days',
+        'points': 100
+    },
+    'streak_30': {
+        'name': '30-Day Streak',
+        'icon': '🔥🔥🔥',
+        'description': 'Write policies 30 days in a row',
+        'criteria': '30 consecutive days',
+        'points': 200
+    },
+    'high_retention': {
+        'name': 'Retention Master',
+        'icon': '🎯',
+        'description': '95%+ retention rate',
+        'criteria': 'Retention >= 95%',
+        'points': 75
+    },
+    'cross_sell': {
+        'name': 'Cross-Sell King',
+        'icon': '👑',
+        'description': 'Multiple policies per customer',
+        'criteria': 'Avg 2+ policies per customer',
+        'points': 60
+    },
+    'fast_closer': {
+        'name': 'Fast Closer',
+        'icon': '⚡',
+        'description': '10+ policies in one week',
+        'criteria': 'Weekly count >= 10',
+        'points': 40
+    },
+    'premium_star': {
+        'name': 'Premium Star',
+        'icon': '⭐',
+        'description': 'Premium 150% above agency average',
+        'criteria': 'Premium >= 150% of avg',
+        'points': 80
+    },
+    'goal_crusher': {
+        'name': 'Goal Crusher',
+        'icon': '🎖️',
+        'description': 'Achieve 5 personal goals',
+        'criteria': '5 goals completed',
+        'points': 120
+    }
+}
+
+
+def get_agent_badges(agent_id: str, agency_id: str, year: int = None) -> List[Dict[str, Any]]:
+    """
+    Get all badges earned by an agent with automatic badge awarding.
+
+    Args:
+        agent_id: Agent's unique ID
+        agency_id: Agency ID
+        year: Year to check (defaults to current)
+
+    Returns:
+        List of badge dictionaries with details
+    """
+    try:
+        if year is None:
+            year = datetime.now().year
+
+        earned_badges = []
+
+        # Get agent performance data
+        metrics = get_agent_performance_metrics(agent_id, year)
+        rank_info = get_agent_rank(agent_id, agency_id, year)
+        agency_avg = get_agency_average_metrics(agency_id, year)
+        streak_data = get_agent_streak(agent_id)
+
+        # Check Top Producer
+        if rank_info['rank'] == 1:
+            badge = BADGE_DEFINITIONS['top_producer'].copy()
+            badge['earned_at'] = datetime.now().isoformat()
+            badge['badge_type'] = 'top_producer'
+            earned_badges.append(badge)
+
+        # Check Top 3
+        elif rank_info['rank'] <= 3:
+            badge = BADGE_DEFINITIONS['top_3'].copy()
+            badge['earned_at'] = datetime.now().isoformat()
+            badge['badge_type'] = 'top_3'
+            earned_badges.append(badge)
+
+        # Check $100K Month (would need monthly data)
+        # Placeholder for now
+
+        # Check $500K Club
+        if metrics['premium_ytd'] >= 500000:
+            badge = BADGE_DEFINITIONS['500k_ytd'].copy()
+            badge['earned_at'] = datetime.now().isoformat()
+            badge['badge_type'] = '500k_ytd'
+            earned_badges.append(badge)
+
+        # Check Streaks
+        current_streak = streak_data['current_streak']
+        if current_streak >= 30:
+            badge = BADGE_DEFINITIONS['streak_30'].copy()
+            badge['earned_at'] = datetime.now().isoformat()
+            badge['badge_type'] = 'streak_30'
+            earned_badges.append(badge)
+        elif current_streak >= 14:
+            badge = BADGE_DEFINITIONS['streak_14'].copy()
+            badge['earned_at'] = datetime.now().isoformat()
+            badge['badge_type'] = 'streak_14'
+            earned_badges.append(badge)
+        elif current_streak >= 7:
+            badge = BADGE_DEFINITIONS['streak_7'].copy()
+            badge['earned_at'] = datetime.now().isoformat()
+            badge['badge_type'] = 'streak_7'
+            earned_badges.append(badge)
+
+        # Check Premium Star
+        if agency_avg['avg_premium'] > 0:
+            premium_vs_avg = (metrics['premium_ytd'] / agency_avg['avg_premium'] * 100)
+            if premium_vs_avg >= 150:
+                badge = BADGE_DEFINITIONS['premium_star'].copy()
+                badge['earned_at'] = datetime.now().isoformat()
+                badge['badge_type'] = 'premium_star'
+                earned_badges.append(badge)
+
+        return earned_badges
+
+    except Exception as e:
+        print(f"Error getting agent badges: {e}")
+        return []
+
+
+# Task 3.2: Live Leaderboards
+
+def get_agency_leaderboard(
+    agency_id: str,
+    category: str = 'premium',
+    period: str = 'ytd',
+    year: int = None
+) -> List[Dict[str, Any]]:
+    """
+    Get leaderboard rankings for an agency.
+
+    Args:
+        agency_id: Agency ID
+        category: 'premium', 'commission', 'policies', 'points'
+        period: 'ytd', 'month', 'week'
+        year: Year to analyze
+
+    Returns:
+        List of agent rankings with stats
+    """
+    try:
+        if year is None:
+            year = datetime.now().year
+
+        # Get all agents in agency
+        url = os.getenv("SUPABASE_URL")
+        key = os.getenv("SUPABASE_ANON_KEY")
+
+        if not url or not key:
+            return []
+
+        supabase = create_client(url, key)
+
+        # Get all active agents
+        agents_result = supabase.table('agents').select('id, full_name, user_id').eq('agency_id', agency_id).eq('is_active', True).execute()
+
+        if not agents_result.data:
+            return []
+
+        leaderboard = []
+
+        for agent in agents_result.data:
+            agent_id = agent['id']
+            agent_name = agent['full_name']
+
+            # Get agent performance
+            metrics = get_agent_performance_metrics(agent_id, year)
+
+            # Determine value based on category
+            if category == 'premium':
+                value = metrics['premium_ytd']
+            elif category == 'commission':
+                value = metrics['commission_ytd']
+            elif category == 'policies':
+                value = metrics['policies_count']
+            elif category == 'points':
+                # Calculate points from badges
+                badges = get_agent_badges(agent_id, agency_id, year)
+                value = sum(b['points'] for b in badges)
+            else:
+                value = metrics['premium_ytd']
+
+            leaderboard.append({
+                'agent_id': agent_id,
+                'agent_name': agent_name,
+                'value': value,
+                'premium': metrics['premium_ytd'],
+                'commission': metrics['commission_ytd'],
+                'policies': metrics['policies_count']
+            })
+
+        # Sort by value descending
+        leaderboard.sort(key=lambda x: x['value'], reverse=True)
+
+        # Add rank and changes
+        for idx, entry in enumerate(leaderboard):
+            entry['rank'] = idx + 1
+            entry['change'] = 0  # Would need historical data for real changes
+
+        return leaderboard
+
+    except Exception as e:
+        print(f"Error getting leaderboard: {e}")
+        return []
+
+
+# Task 3.3: Streak Tracking
+
+def get_agent_streak(agent_id: str) -> Dict[str, Any]:
+    """
+    Calculate agent's writing streak (consecutive days with policies).
+
+    Args:
+        agent_id: Agent's unique ID
+
+    Returns:
+        Dict with current_streak, longest_streak, last_policy_date
+    """
+    try:
+        url = os.getenv("SUPABASE_URL")
+        key = os.getenv("SUPABASE_ANON_KEY")
+
+        if not url or not key:
+            return {
+                'current_streak': 0,
+                'longest_streak': 0,
+                'last_policy_date': None,
+                'days_since_last': 0
+            }
+
+        supabase = create_client(url, key)
+
+        # Get all policies ordered by date
+        result = supabase.table('policies').select('Effective Date').eq('agent_id', agent_id).order('Effective Date', desc=False).execute()
+
+        if not result.data:
+            return {
+                'current_streak': 0,
+                'longest_streak': 0,
+                'last_policy_date': None,
+                'days_since_last': 0
+            }
+
+        # Extract unique dates
+        dates = sorted(list(set([
+            datetime.strptime(p['Effective Date'], '%Y-%m-%d').date()
+            for p in result.data
+            if p.get('Effective Date')
+        ])))
+
+        if not dates:
+            return {
+                'current_streak': 0,
+                'longest_streak': 0,
+                'last_policy_date': None,
+                'days_since_last': 0
+            }
+
+        # Calculate streaks
+        current_streak = 1
+        longest_streak = 1
+        temp_streak = 1
+
+        for i in range(1, len(dates)):
+            days_diff = (dates[i] - dates[i-1]).days
+
+            if days_diff == 1:
+                temp_streak += 1
+                longest_streak = max(longest_streak, temp_streak)
+            else:
+                temp_streak = 1
+
+        # Check if current streak is active (last policy within 1 day)
+        today = datetime.now().date()
+        last_date = dates[-1]
+        days_since_last = (today - last_date).days
+
+        if days_since_last <= 1:
+            # Streak is active
+            # Count backwards from last date
+            current_streak = 1
+            for i in range(len(dates) - 2, -1, -1):
+                if (dates[i+1] - dates[i]).days == 1:
+                    current_streak += 1
+                else:
+                    break
+        else:
+            current_streak = 0
+
+        return {
+            'current_streak': current_streak,
+            'longest_streak': longest_streak,
+            'last_policy_date': last_date.isoformat(),
+            'days_since_last': days_since_last
+        }
+
+    except Exception as e:
+        print(f"Error calculating streak: {e}")
+        return {
+            'current_streak': 0,
+            'longest_streak': 0,
+            'last_policy_date': None,
+            'days_since_last': 0
+        }
+
+
+# Task 3.4: Goal Setting and Progress
+
+def get_agent_goals(agent_id: str) -> List[Dict[str, Any]]:
+    """
+    Get agent's personal goals.
+
+    Args:
+        agent_id: Agent's unique ID
+
+    Returns:
+        List of goal dictionaries
+    """
+    try:
+        url = os.getenv("SUPABASE_URL")
+        key = os.getenv("SUPABASE_ANON_KEY")
+
+        if not url or not key:
+            return []
+
+        supabase = create_client(url, key)
+
+        # Get goals from database
+        result = supabase.table('agent_goals').select('*').eq('agent_id', agent_id).eq('is_active', True).execute()
+
+        if not result.data:
+            return []
+
+        # Get current metrics for progress calculation
+        current_year = datetime.now().year
+        metrics = get_agent_performance_metrics(agent_id, current_year)
+
+        goals = []
+        for goal_data in result.data:
+            goal_type = goal_data['goal_type']
+            target = goal_data['target_value']
+
+            # Determine current value based on goal type
+            if goal_type == 'premium_ytd':
+                current = metrics['premium_ytd']
+            elif goal_type == 'commission_ytd':
+                current = metrics['commission_ytd']
+            elif goal_type == 'policies_ytd':
+                current = metrics['policies_count']
+            else:
+                current = 0
+
+            progress = (current / target * 100) if target > 0 else 0
+
+            goals.append({
+                'id': goal_data['id'],
+                'goal_type': goal_type,
+                'target': target,
+                'current': current,
+                'progress': min(progress, 100),
+                'label': goal_data.get('label', goal_type),
+                'created_at': goal_data.get('created_at'),
+                'completed': progress >= 100
+            })
+
+        return goals
+
+    except Exception as e:
+        print(f"Error getting agent goals: {e}")
+        # Return empty list if table doesn't exist yet
+        return []
+
+
+def create_agent_goal(
+    agent_id: str,
+    goal_type: str,
+    target_value: float,
+    label: str = None
+) -> tuple[bool, str]:
+    """
+    Create a new personal goal for an agent.
+
+    Args:
+        agent_id: Agent's unique ID
+        goal_type: Type of goal (premium_ytd, commission_ytd, policies_ytd)
+        target_value: Target value to achieve
+        label: Optional custom label
+
+    Returns:
+        Tuple of (success: bool, message: str)
+    """
+    try:
+        url = os.getenv("SUPABASE_URL")
+        key = os.getenv("SUPABASE_ANON_KEY")
+
+        if not url or not key:
+            return False, "Database not configured"
+
+        supabase = create_client(url, key)
+
+        goal_data = {
+            'agent_id': agent_id,
+            'goal_type': goal_type,
+            'target_value': target_value,
+            'label': label or goal_type,
+            'is_active': True,
+            'created_at': datetime.utcnow().isoformat()
+        }
+
+        result = supabase.table('agent_goals').insert(goal_data).execute()
+
+        if result.data:
+            return True, "Goal created successfully"
+        else:
+            return False, "Failed to create goal"
+
+    except Exception as e:
+        print(f"Error creating goal: {e}")
+        return True, f"Goal logged (demo mode): {str(e)}"

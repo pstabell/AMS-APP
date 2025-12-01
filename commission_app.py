@@ -23200,34 +23200,408 @@ CREATE TABLE IF NOT EXISTS deleted_policies (
         """)
 
     elif page == "🏆 Leaderboard":
-        # Agent leaderboard
+        # Agent leaderboard (Task 3.2: Live Leaderboards)
+        from utils.agent_data_helpers import get_agency_leaderboard
+
         st.title("🏆 Agency Leaderboard")
+
+        agent_id = st.session_state.get('agent_id')
+        agency_id = st.session_state.get('agency_id')
         agency_name = st.session_state.get('agency_name', 'Your Agency')
 
+        if not agent_id or not agency_id:
+            st.error("Missing agent or agency information.")
+            st.stop()
+
         st.write(f"**{agency_name} Rankings**")
-        st.info("🚧 **Leaderboard** coming in Sprint 3!")
-        st.markdown("""
-        ### See How You Stack Up:
-        - 🥇 Top producers by premium
-        - 📊 Rankings by policies written
-        - 📈 Month-over-month growth
-        - 🎯 Team performance metrics
-        """)
+
+        # Category and period selectors
+        col1, col2, col3 = st.columns([2, 2, 3])
+
+        with col1:
+            category = st.selectbox(
+                "Category",
+                options=['premium', 'commission', 'policies', 'points'],
+                format_func=lambda x: {
+                    'premium': '💰 Premium Volume',
+                    'commission': '💵 Commission Earned',
+                    'policies': '📋 Policy Count',
+                    'points': '⭐ Points Earned'
+                }[x],
+                key="leaderboard_category"
+            )
+
+        with col2:
+            period = st.selectbox(
+                "Period",
+                options=['ytd', 'month', 'week'],
+                format_func=lambda x: {
+                    'ytd': '📅 Year to Date',
+                    'month': '📆 This Month',
+                    'week': '📋 This Week'
+                }[x],
+                key="leaderboard_period"
+            )
+
+        # Get leaderboard data
+        current_year = datetime.now().year
+        leaderboard = get_agency_leaderboard(agency_id, category, period, current_year)
+
+        if not leaderboard:
+            st.info("No leaderboard data available yet. Data will appear as agents write policies.")
+            st.stop()
+
+        # Find current agent's rank
+        current_agent_rank = None
+        for entry in leaderboard:
+            if entry['agent_id'] == agent_id:
+                current_agent_rank = entry
+                break
+
+        # Display current user's position
+        if current_agent_rank:
+            rank = current_agent_rank['rank']
+            value = current_agent_rank['value']
+
+            rank_emoji = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else "🏅"
+
+            st.markdown(f"### {rank_emoji} Your Current Rank: #{rank}")
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Your Position", f"#{rank} of {len(leaderboard)}")
+            with col2:
+                category_label = {
+                    'premium': 'Premium',
+                    'commission': 'Commission',
+                    'policies': 'Policies',
+                    'points': 'Points'
+                }[category]
+
+                if category in ['premium', 'commission']:
+                    st.metric(category_label, f"${value:,.0f}")
+                else:
+                    st.metric(category_label, f"{value:,.0f}")
+
+            with col3:
+                # Calculate distance from #1
+                if rank > 1:
+                    leader_value = leaderboard[0]['value']
+                    diff = leader_value - value
+                    if category in ['premium', 'commission']:
+                        st.metric("Behind Leader", f"${diff:,.0f}")
+                    else:
+                        st.metric("Behind Leader", f"{diff:,.0f}")
+                else:
+                    st.metric("Status", "🏆 Leader!")
+
+        st.markdown("---")
+
+        # Display full leaderboard
+        st.markdown("### 📊 Full Rankings")
+
+        # Create leaderboard table
+        leaderboard_data = []
+        for entry in leaderboard:
+            rank = entry['rank']
+            agent_name = entry['agent_name']
+            value = entry['value']
+
+            # Add emoji for top 3
+            if rank == 1:
+                rank_display = "🥇 1"
+            elif rank == 2:
+                rank_display = "🥈 2"
+            elif rank == 3:
+                rank_display = "🥉 3"
+            else:
+                rank_display = f"   {rank}"
+
+            # Highlight current agent
+            if entry['agent_id'] == agent_id:
+                agent_name = f"**{agent_name} (You!)**"
+
+            # Format value
+            if category in ['premium', 'commission']:
+                value_display = f"${value:,.0f}"
+            else:
+                value_display = f"{value:,.0f}"
+
+            # Change indicator (placeholder - would need historical data)
+            change_display = "─"
+
+            leaderboard_data.append({
+                'Rank': rank_display,
+                'Agent': agent_name,
+                category.title(): value_display,
+                'Change': change_display
+            })
+
+        # Display as dataframe
+        import pandas as pd
+        df = pd.DataFrame(leaderboard_data)
+
+        st.dataframe(
+            df,
+            use_container_width=True,
+            hide_index=True,
+            height=min(400, len(df) * 35 + 38)
+        )
+
+        # Additional stats
+        st.markdown("---")
+        st.markdown("### 📈 Additional Stats")
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            avg_value = sum(e['value'] for e in leaderboard) / len(leaderboard)
+            st.metric(
+                "Agency Average",
+                f"${avg_value:,.0f}" if category in ['premium', 'commission'] else f"{avg_value:,.0f}"
+            )
+
+        with col2:
+            total_value = sum(e['value'] for e in leaderboard)
+            st.metric(
+                "Agency Total",
+                f"${total_value:,.0f}" if category in ['premium', 'commission'] else f"{total_value:,.0f}"
+            )
+
+        with col3:
+            if current_agent_rank:
+                percentile = ((len(leaderboard) - rank + 1) / len(leaderboard) * 100)
+                st.metric("Your Percentile", f"Top {percentile:.0f}%")
 
     elif page == "🎯 Goals & Badges":
-        # Gamification page
+        # Gamification page (Tasks 3.1, 3.3, 3.4)
+        from utils.agent_data_helpers import (
+            get_agent_badges,
+            get_agent_streak,
+            get_agent_goals,
+            create_agent_goal,
+            BADGE_DEFINITIONS
+        )
+
         st.title("🎯 Goals & Badges")
+
+        agent_id = st.session_state.get('agent_id')
+        agency_id = st.session_state.get('agency_id')
         agent_name = st.session_state.get('agent_name', 'Agent')
 
-        st.write(f"**{agent_name}'s Achievements**")
-        st.info("🚧 **Gamification** coming in Sprint 3!")
-        st.markdown("""
-        ### Your Achievements:
-        - 🏅 Earned badges
-        - 🎯 Active goals
-        - 🔥 Writing streaks
-        - ⭐ Milestones reached
-        """)
+        if not agent_id or not agency_id:
+            st.error("Missing agent or agency information.")
+            st.stop()
+
+        # Get current year
+        current_year = datetime.now().year
+
+        # Get data
+        badges = get_agent_badges(agent_id, agency_id, current_year)
+        streak_data = get_agent_streak(agent_id)
+        goals = get_agent_goals(agent_id)
+
+        # Tab layout
+        tab1, tab2, tab3, tab4 = st.tabs(["🏅 Badges", "🔥 Streaks", "🎯 Goals", "📜 All Badges"])
+
+        # Tab 1: Earned Badges
+        with tab1:
+            st.markdown("### 🏅 Your Earned Badges")
+
+            if not badges:
+                st.info("Keep working to earn your first badge! Badges are awarded automatically based on your performance.")
+            else:
+                # Calculate total points
+                total_points = sum(b['points'] for b in badges)
+                st.metric("Total Points Earned", f"{total_points:,}")
+
+                st.markdown("---")
+
+                # Display badges in grid
+                cols_per_row = 3
+                for i in range(0, len(badges), cols_per_row):
+                    cols = st.columns(cols_per_row)
+                    for j, col in enumerate(cols):
+                        if i + j < len(badges):
+                            badge = badges[i + j]
+                            with col:
+                                st.markdown(f"### {badge['icon']}")
+                                st.markdown(f"**{badge['name']}**")
+                                st.caption(badge['description'])
+                                st.caption(f"🌟 {badge['points']} points")
+
+        # Tab 2: Streaks
+        with tab2:
+            st.markdown("### 🔥 Writing Streak")
+
+            current_streak = streak_data['current_streak']
+            longest_streak = streak_data['longest_streak']
+            days_since_last = streak_data['days_since_last']
+
+            # Current streak display
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                if current_streak > 0:
+                    st.metric("Current Streak", f"{current_streak} days 🔥")
+                else:
+                    st.metric("Current Streak", "0 days", help="Write a policy today to start your streak!")
+
+            with col2:
+                st.metric("Longest Streak", f"{longest_streak} days")
+
+            with col3:
+                if days_since_last == 0:
+                    st.metric("Last Policy", "Today ✅")
+                elif days_since_last == 1:
+                    st.metric("Last Policy", "Yesterday")
+                else:
+                    st.metric("Last Policy", f"{days_since_last} days ago")
+
+            st.markdown("---")
+
+            # Streak status
+            if current_streak == 0:
+                st.warning("⚠️ Your streak has ended. Write a policy today to start a new streak!")
+            elif current_streak >= 30:
+                st.success("🎉 Amazing! You're on a 30+ day streak!")
+            elif current_streak >= 14:
+                st.success("🔥 Great job! You're on a 14+ day streak!")
+            elif current_streak >= 7:
+                st.info("👍 Nice! You're on a 7+ day streak!")
+            else:
+                st.info(f"💪 Keep it going! {7 - current_streak} more days to reach 7-day streak.")
+
+            # Streak milestones
+            st.markdown("### 🎯 Streak Milestones")
+
+            milestones = [
+                {'days': 7, 'name': '7-Day Streak', 'icon': '🔥', 'points': 50},
+                {'days': 14, 'name': '14-Day Streak', 'icon': '🔥🔥', 'points': 100},
+                {'days': 30, 'name': '30-Day Streak', 'icon': '🔥🔥🔥', 'points': 200},
+                {'days': 60, 'name': '60-Day Streak', 'icon': '🔥🔥🔥🔥', 'points': 400},
+            ]
+
+            for milestone in milestones:
+                if longest_streak >= milestone['days']:
+                    st.success(f"✅ {milestone['icon']} {milestone['name']} - {milestone['points']} points (Achieved!)")
+                elif current_streak >= milestone['days']:
+                    st.info(f"🎯 {milestone['icon']} {milestone['name']} - {milestone['points']} points (Active!)")
+                else:
+                    remaining = milestone['days'] - current_streak
+                    st.markdown(f"⬜ {milestone['icon']} {milestone['name']} - {milestone['points']} points ({remaining} days to go)")
+
+        # Tab 3: Goals
+        with tab3:
+            st.markdown("### 🎯 Your Personal Goals")
+
+            if not goals:
+                st.info("You haven't set any goals yet. Create your first goal below!")
+            else:
+                for goal in goals:
+                    st.markdown(f"#### {goal['label']}")
+
+                    # Progress bar
+                    progress = goal['progress'] / 100
+                    st.progress(progress)
+
+                    # Stats
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        if goal['goal_type'] in ['premium_ytd', 'commission_ytd']:
+                            st.metric("Target", f"${goal['target']:,.0f}")
+                        else:
+                            st.metric("Target", f"{goal['target']:,.0f}")
+
+                    with col2:
+                        if goal['goal_type'] in ['premium_ytd', 'commission_ytd']:
+                            st.metric("Current", f"${goal['current']:,.0f}")
+                        else:
+                            st.metric("Current", f"{goal['current']:,.0f}")
+
+                    with col3:
+                        remaining = goal['target'] - goal['current']
+                        if goal['goal_type'] in ['premium_ytd', 'commission_ytd']:
+                            st.metric("Remaining", f"${remaining:,.0f}")
+                        else:
+                            st.metric("Remaining", f"{remaining:,.0f}")
+
+                    # Status
+                    if goal['completed']:
+                        st.success("🎉 Goal Achieved! Congratulations!")
+                    else:
+                        progress_pct = goal['progress']
+                        if progress_pct >= 80:
+                            st.info(f"Almost there! {progress_pct:.1f}% complete")
+                        else:
+                            st.caption(f"Progress: {progress_pct:.1f}%")
+
+                    st.markdown("---")
+
+            # Create new goal form
+            with st.expander("➕ Set a New Goal"):
+                with st.form("create_goal_form", clear_on_submit=True):
+                    goal_type = st.selectbox(
+                        "Goal Type",
+                        options=['premium_ytd', 'commission_ytd', 'policies_ytd'],
+                        format_func=lambda x: {
+                            'premium_ytd': '💰 YTD Premium Target',
+                            'commission_ytd': '💵 YTD Commission Target',
+                            'policies_ytd': '📋 YTD Policy Count'
+                        }[x],
+                        key="new_goal_type"
+                    )
+
+                    target_value = st.number_input(
+                        "Target Value",
+                        min_value=0.0,
+                        step=1000.0 if goal_type in ['premium_ytd', 'commission_ytd'] else 1.0,
+                        key="new_goal_target"
+                    )
+
+                    label = st.text_input(
+                        "Goal Name (optional)",
+                        placeholder="e.g., Reach $500K Premium",
+                        key="new_goal_label"
+                    )
+
+                    submit_goal = st.form_submit_button("Create Goal", type="primary")
+
+                    if submit_goal:
+                        if target_value <= 0:
+                            st.error("Please enter a valid target value greater than 0.")
+                        else:
+                            success, message = create_agent_goal(
+                                agent_id,
+                                goal_type,
+                                target_value,
+                                label if label else None
+                            )
+
+                            if success:
+                                st.success(f"✅ {message}")
+                                st.info("Refresh the page to see your new goal.")
+                            else:
+                                st.error(f"❌ {message}")
+
+        # Tab 4: All Available Badges
+        with tab4:
+            st.markdown("### 📜 All Available Badges")
+            st.caption("Here are all the badges you can earn:")
+
+            earned_badge_types = [b['badge_type'] for b in badges]
+
+            for badge_type, badge_def in BADGE_DEFINITIONS.items():
+                is_earned = badge_type in earned_badge_types
+
+                if is_earned:
+                    st.success(f"✅ {badge_def['icon']} **{badge_def['name']}** - {badge_def['points']} points")
+                else:
+                    st.markdown(f"⬜ {badge_def['icon']} **{badge_def['name']}** - {badge_def['points']} points")
+
+                st.caption(f"   {badge_def['description']}")
+                st.caption(f"   *Criteria: {badge_def['criteria']}*")
+                st.markdown("")
 
     elif page == "🔔 Notifications":
         # Agent notifications
