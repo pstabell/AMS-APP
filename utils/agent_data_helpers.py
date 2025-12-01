@@ -3035,3 +3035,471 @@ Your Agency Team
     except Exception as e:
         print(f"Error sending weekly digest email: {e}")
         return False
+
+
+# =============================================================================
+# PHASE 3 - SPRINT 3: AI & PREDICTIVE ANALYTICS
+# =============================================================================
+
+def get_renewal_predictions_for_agent(agent_id: str, days_ahead: int = 90, supabase=None) -> List[Dict]:
+    """
+    Get renewal predictions for an agent's policies.
+
+    Args:
+        agent_id: Agent ID
+        days_ahead: Number of days ahead to predict (default 90)
+        supabase: Supabase client
+
+    Returns:
+        List of policies with renewal predictions
+    """
+    from utils.ml_models import RenewalPredictor
+
+    try:
+        if not supabase:
+            supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+        # Get upcoming renewals
+        end_date = (datetime.now() + timedelta(days=days_ahead)).strftime('%Y-%m-%d')
+
+        result = supabase.table('policies').select('*').eq('agent_id', agent_id).lte('expiration_date', end_date).gte('expiration_date', datetime.now().strftime('%Y-%m-%d')).execute()
+
+        if not result.data:
+            return []
+
+        # Convert to DataFrame
+        policies_df = pd.DataFrame(result.data)
+
+        # Initialize predictor (would load trained model in production)
+        predictor = RenewalPredictor()
+
+        # For now, generate predictions based on heuristics
+        # In production, would use trained ML model
+        predictions = []
+        for _, policy in policies_df.iterrows():
+            days_until = (pd.to_datetime(policy['expiration_date']) - datetime.now()).days
+
+            # Heuristic-based probability (would use ML model in production)
+            if policy.get('premium', 0) > 2000:
+                base_prob = 0.85
+            elif policy.get('premium', 0) > 1000:
+                base_prob = 0.75
+            else:
+                base_prob = 0.65
+
+            # Adjust for time
+            if days_until < 15:
+                base_prob -= 0.10
+            elif days_until < 30:
+                base_prob -= 0.05
+
+            renewal_prob = max(0, min(1, base_prob))
+
+            predictions.append({
+                'policy_id': policy['id'],
+                'policy_number': policy.get('policy_number', 'N/A'),
+                'insured_name': policy.get('insured_name', 'Unknown'),
+                'policy_type': policy.get('policy_type', 'Unknown'),
+                'carrier': policy.get('carrier', 'Unknown'),
+                'premium': policy.get('premium', 0),
+                'expiration_date': policy['expiration_date'],
+                'days_until_renewal': days_until,
+                'renewal_probability': round(renewal_prob, 3),
+                'renewal_risk': _categorize_renewal_risk(renewal_prob),
+                'recommendation': _generate_renewal_recommendation(renewal_prob, days_until)
+            })
+
+        return predictions
+
+    except Exception as e:
+        print(f"Error getting renewal predictions: {e}")
+        return []
+
+
+def _categorize_renewal_risk(probability: float) -> str:
+    """Helper to categorize renewal probability into risk levels."""
+    if probability >= 0.8:
+        return 'Very Low Risk'
+    elif probability >= 0.6:
+        return 'Low Risk'
+    elif probability >= 0.4:
+        return 'Medium Risk'
+    elif probability >= 0.2:
+        return 'High Risk'
+    else:
+        return 'Critical Risk'
+
+
+def _generate_renewal_recommendation(probability: float, days_until: int) -> str:
+    """Helper to generate renewal recommendations."""
+    if probability >= 0.8:
+        return "Low risk - maintain regular contact"
+    elif probability >= 0.6:
+        if days_until <= 30:
+            return "Schedule renewal review call this week"
+        else:
+            return "Schedule renewal review call"
+    elif probability >= 0.4:
+        return "Proactive outreach needed - review coverage and pricing"
+    elif probability >= 0.2:
+        return "High risk - urgent intervention required, consider retention offer"
+    else:
+        return "Critical risk - immediate contact, escalate to senior agent"
+
+
+@cache_result(ttl_seconds=3600)
+def calculate_client_lifetime_value(client_name: str, agency_id: str, supabase=None) -> Dict:
+    """
+    Calculate Client Lifetime Value (CLV) for a specific client.
+
+    Args:
+        client_name: Client name
+        agency_id: Agency ID
+        supabase: Supabase client
+
+    Returns:
+        Dictionary with CLV calculation
+    """
+    from utils.ml_models import CLVCalculator
+
+    try:
+        if not supabase:
+            supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+        # Get all policies for this client
+        result = supabase.table('policies').select('*').eq('agency_id', agency_id).eq('insured_name', client_name).execute()
+
+        if not result.data:
+            return {'clv': 0, 'error': 'No policies found for client'}
+
+        policies_df = pd.DataFrame(result.data)
+
+        # Initialize CLV calculator
+        calculator = CLVCalculator()
+
+        # Calculate CLV
+        clv_data = calculator.calculate_clv(policies_df)
+        clv_data['client_name'] = client_name
+
+        return clv_data
+
+    except Exception as e:
+        print(f"Error calculating CLV: {e}")
+        return {'clv': 0, 'error': str(e)}
+
+
+@cache_result(ttl_seconds=3600)
+def get_all_clients_clv(agency_id: str, supabase=None) -> List[Dict]:
+    """
+    Calculate CLV for all clients in an agency.
+
+    Args:
+        agency_id: Agency ID
+        supabase: Supabase client
+
+    Returns:
+        List of clients with CLV data
+    """
+    from utils.ml_models import CLVCalculator
+
+    try:
+        if not supabase:
+            supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+        # Get all policies for agency
+        result = supabase.table('policies').select('*').eq('agency_id', agency_id).execute()
+
+        if not result.data:
+            return []
+
+        policies_df = pd.DataFrame(result.data)
+
+        # Group by client and calculate CLV
+        calculator = CLVCalculator()
+        clv_results = []
+
+        for client_name, client_policies in policies_df.groupby('insured_name'):
+            try:
+                clv_data = calculator.calculate_clv(client_policies)
+                clv_data['client_name'] = client_name
+                clv_results.append(clv_data)
+            except Exception as e:
+                print(f"Error calculating CLV for {client_name}: {e}")
+                continue
+
+        # Sort by CLV descending
+        clv_results.sort(key=lambda x: x['clv'], reverse=True)
+
+        return clv_results
+
+    except Exception as e:
+        print(f"Error getting all clients CLV: {e}")
+        return []
+
+
+def calculate_churn_risk_for_client(client_name: str, agency_id: str, supabase=None) -> Dict:
+    """
+    Calculate churn risk score for a specific client.
+
+    Args:
+        client_name: Client name
+        agency_id: Agency ID
+        supabase: Supabase client
+
+    Returns:
+        Dictionary with churn risk analysis
+    """
+    from utils.ml_models import ChurnRiskScorer
+
+    try:
+        if not supabase:
+            supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+        # Get client policies
+        result = supabase.table('policies').select('*').eq('agency_id', agency_id).eq('insured_name', client_name).execute()
+
+        if not result.data:
+            return {'churn_risk_score': 0, 'error': 'No policies found for client'}
+
+        # Prepare client data (in production would include more data sources)
+        client_data = {
+            'claims_count': 0,  # Would query claims table
+            'recent_claims_count': 0,
+            'late_payments_count': 0,
+            'payment_score': 100,
+            'days_since_last_contact': 60,  # Would query interaction log
+            'response_rate': 0.75,
+            'premium_increase_percent': 0,
+            'coverage_decreased': False,
+            'policies_cancelled_count': 0,
+            'years_active': (datetime.now() - pd.to_datetime(result.data[0]['effective_date'])).days / 365.25
+        }
+
+        # Calculate churn risk
+        scorer = ChurnRiskScorer()
+        risk_analysis = scorer.calculate_churn_risk(client_data)
+        risk_analysis['client_name'] = client_name
+
+        return risk_analysis
+
+    except Exception as e:
+        print(f"Error calculating churn risk: {e}")
+        return {'churn_risk_score': 0, 'error': str(e)}
+
+
+@cache_result(ttl_seconds=600)
+def get_high_risk_clients(agency_id: str, risk_threshold: int = 60, supabase=None) -> List[Dict]:
+    """
+    Get all clients with high churn risk.
+
+    Args:
+        agency_id: Agency ID
+        risk_threshold: Minimum risk score to include (default 60)
+        supabase: Supabase client
+
+    Returns:
+        List of high-risk clients
+    """
+    from utils.ml_models import ChurnRiskScorer
+
+    try:
+        if not supabase:
+            supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+        # Get all unique clients
+        result = supabase.table('policies').select('insured_name').eq('agency_id', agency_id).execute()
+
+        if not result.data:
+            return []
+
+        unique_clients = list(set([p['insured_name'] for p in result.data]))
+
+        # Calculate risk for each client
+        high_risk_clients = []
+        for client_name in unique_clients:
+            risk_data = calculate_churn_risk_for_client(client_name, agency_id, supabase)
+
+            if risk_data.get('churn_risk_score', 0) >= risk_threshold:
+                high_risk_clients.append(risk_data)
+
+        # Sort by risk score descending
+        high_risk_clients.sort(key=lambda x: x['churn_risk_score'], reverse=True)
+
+        return high_risk_clients
+
+    except Exception as e:
+        print(f"Error getting high-risk clients: {e}")
+        return []
+
+
+@cache_result(ttl_seconds=600)
+def get_ai_recommendations_for_agent(agent_id: str, limit: int = 20, supabase=None) -> List[Dict]:
+    """
+    Get AI-powered recommendations for an agent.
+
+    Args:
+        agent_id: Agent ID
+        limit: Maximum number of recommendations (default 20)
+        supabase: Supabase client
+
+    Returns:
+        List of recommendations sorted by priority
+    """
+    from utils.ml_models import RecommendationEngine
+
+    try:
+        if not supabase:
+            supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+        # Get agent's policies and clients
+        policies_result = supabase.table('policies').select('*').eq('agent_id', agent_id).execute()
+
+        if not policies_result.data:
+            return []
+
+        # Get agent info
+        agent_result = supabase.table('agents').select('*, agencies(id, agency_name)').eq('id', agent_id).execute()
+        agency_id = agent_result.data[0].get('agency_id') if agent_result.data else None
+
+        # Prepare context
+        context = {
+            'agent_id': agent_id,
+            'agency_id': agency_id,
+            'policies': policies_result.data,
+            'clients': _prepare_clients_from_policies(policies_result.data),
+            'upcoming_renewals': _prepare_upcoming_renewals(policies_result.data),
+            'high_risk_clients': [],  # Would include churn risk data
+            'life_events': []  # Would come from external data source
+        }
+
+        # Generate recommendations
+        engine = RecommendationEngine()
+        recommendations = engine.get_recommendations(agent_id, context)
+
+        return recommendations[:limit]
+
+    except Exception as e:
+        print(f"Error getting AI recommendations: {e}")
+        return []
+
+
+def _prepare_clients_from_policies(policies: List[Dict]) -> List[Dict]:
+    """Helper to prepare client data from policies."""
+    clients_dict = {}
+
+    for policy in policies:
+        client_name = policy.get('insured_name', 'Unknown')
+
+        if client_name not in clients_dict:
+            clients_dict[client_name] = {
+                'id': client_name,
+                'name': client_name,
+                'policies': []
+            }
+
+        clients_dict[client_name]['policies'].append(policy)
+
+    return list(clients_dict.values())
+
+
+def _prepare_upcoming_renewals(policies: List[Dict]) -> List[Dict]:
+    """Helper to prepare upcoming renewals."""
+    renewals = []
+
+    for policy in policies:
+        exp_date = pd.to_datetime(policy['expiration_date'])
+        days_until = (exp_date - datetime.now()).days
+
+        if 0 <= days_until <= 60:
+            renewals.append({
+                'policy_id': policy['id'],
+                'client_id': policy.get('insured_name'),
+                'client_name': policy.get('insured_name'),
+                'days_until_renewal': days_until,
+                'premium': policy.get('premium', 0)
+            })
+
+    return renewals
+
+
+@cache_result(ttl_seconds=3600)
+def get_ai_analytics_summary(agent_id: str = None, agency_id: str = None, supabase=None) -> Dict:
+    """
+    Get AI analytics summary for agent or agency dashboard.
+
+    Args:
+        agent_id: Agent ID (for agent view)
+        agency_id: Agency ID (for agency owner view)
+        supabase: Supabase client
+
+    Returns:
+        Dictionary with AI analytics summary
+    """
+    try:
+        if not supabase:
+            supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+        summary = {
+            'renewal_predictions': {
+                'total_upcoming': 0,
+                'high_risk_count': 0,
+                'medium_risk_count': 0,
+                'low_risk_count': 0
+            },
+            'client_lifetime_value': {
+                'total_clv': 0,
+                'avg_clv': 0,
+                'platinum_clients': 0,
+                'gold_clients': 0
+            },
+            'churn_risk': {
+                'critical_risk': 0,
+                'high_risk': 0,
+                'medium_risk': 0,
+                'total_at_risk': 0
+            },
+            'recommendations': {
+                'total_active': 0,
+                'cross_sell_opportunities': 0,
+                'retention_actions': 0,
+                'upsell_opportunities': 0
+            }
+        }
+
+        # Get renewal predictions
+        if agent_id:
+            renewals = get_renewal_predictions_for_agent(agent_id, 90, supabase)
+            summary['renewal_predictions']['total_upcoming'] = len(renewals)
+            summary['renewal_predictions']['high_risk_count'] = len([r for r in renewals if r['renewal_risk'] in ['High Risk', 'Critical Risk']])
+            summary['renewal_predictions']['medium_risk_count'] = len([r for r in renewals if r['renewal_risk'] == 'Medium Risk'])
+            summary['renewal_predictions']['low_risk_count'] = len([r for r in renewals if r['renewal_risk'] in ['Low Risk', 'Very Low Risk']])
+
+        # Get CLV data
+        if agency_id:
+            clv_data = get_all_clients_clv(agency_id, supabase)
+            summary['client_lifetime_value']['total_clv'] = sum([c['clv'] for c in clv_data])
+            summary['client_lifetime_value']['avg_clv'] = summary['client_lifetime_value']['total_clv'] / len(clv_data) if clv_data else 0
+            summary['client_lifetime_value']['platinum_clients'] = len([c for c in clv_data if c['tier'] == 'Platinum'])
+            summary['client_lifetime_value']['gold_clients'] = len([c for c in clv_data if c['tier'] == 'Gold'])
+
+        # Get churn risk data
+        if agency_id:
+            high_risk = get_high_risk_clients(agency_id, 40, supabase)
+            summary['churn_risk']['critical_risk'] = len([c for c in high_risk if c['risk_level'] == 'Critical'])
+            summary['churn_risk']['high_risk'] = len([c for c in high_risk if c['risk_level'] == 'High'])
+            summary['churn_risk']['medium_risk'] = len([c for c in high_risk if c['risk_level'] == 'Medium'])
+            summary['churn_risk']['total_at_risk'] = len(high_risk)
+
+        # Get recommendations
+        if agent_id:
+            recommendations = get_ai_recommendations_for_agent(agent_id, 50, supabase)
+            summary['recommendations']['total_active'] = len(recommendations)
+            summary['recommendations']['cross_sell_opportunities'] = len([r for r in recommendations if r['type'] == 'cross_sell'])
+            summary['recommendations']['retention_actions'] = len([r for r in recommendations if r['type'] == 'retention'])
+            summary['recommendations']['upsell_opportunities'] = len([r for r in recommendations if r['type'] == 'upsell'])
+
+        return summary
+
+    except Exception as e:
+        print(f"Error getting AI analytics summary: {e}")
+        return summary

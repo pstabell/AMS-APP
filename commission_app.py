@@ -6925,6 +6925,7 @@ def main():
             "📊 My Dashboard",  # Agent personal dashboard
             "💰 My Commissions",  # Agent commission statements
             "📋 My Policies",  # Agent's policies
+            "🤖 AI Insights",  # Phase 3 - AI & Predictive Analytics
             "🏆 Leaderboard",  # See rankings
             "🎯 Goals & Badges",  # Gamification
             notification_label,  # Agent notifications with unread count
@@ -23776,6 +23777,363 @@ CREATE TABLE IF NOT EXISTS deleted_policies (
 
             else:
                 st.success("🎉 No lost renewals in this period! Great job retaining your book of business!")
+
+    elif page == "🤖 AI Insights":
+        # Phase 3, Sprint 3: AI & Predictive Analytics
+        from utils.agent_data_helpers import (
+            get_renewal_predictions_for_agent,
+            get_ai_recommendations_for_agent,
+            get_all_clients_clv,
+            get_high_risk_clients,
+            get_ai_analytics_summary
+        )
+
+        st.title("🤖 AI Insights & Predictions")
+        st.markdown("### Powered by Machine Learning")
+
+        agent_id = st.session_state.get('agent_id')
+        agency_id = st.session_state.get('agency_id')
+
+        if not agent_id or not agency_id:
+            st.error("Missing agent or agency information.")
+            st.stop()
+
+        # Get AI analytics summary
+        summary = get_ai_analytics_summary(agent_id=agent_id, agency_id=agency_id)
+
+        # Summary metrics
+        st.markdown("#### 📊 AI Analytics Overview")
+        col_ai1, col_ai2, col_ai3, col_ai4 = st.columns(4)
+
+        with col_ai1:
+            st.metric(
+                "Upcoming Renewals",
+                summary['renewal_predictions']['total_upcoming'],
+                help="Policies expiring in next 90 days"
+            )
+
+        with col_ai2:
+            at_risk = summary['renewal_predictions']['high_risk_count']
+            st.metric(
+                "High Risk Renewals",
+                at_risk,
+                delta=f"-{at_risk} need attention" if at_risk > 0 else "All good",
+                delta_color="inverse",
+                help="Renewals with <40% probability"
+            )
+
+        with col_ai3:
+            recommendations = summary['recommendations']['total_active']
+            st.metric(
+                "Active Recommendations",
+                recommendations,
+                help="AI-generated action items"
+            )
+
+        with col_ai4:
+            churn_risk = summary['churn_risk']['total_at_risk']
+            st.metric(
+                "Clients at Risk",
+                churn_risk,
+                delta=f"{churn_risk} need retention" if churn_risk > 0 else "All stable",
+                delta_color="inverse",
+                help="Clients with churn risk > 40"
+            )
+
+        st.divider()
+
+        # Tabs for different AI features
+        tab1, tab2, tab3, tab4 = st.tabs([
+            "🔮 Renewal Predictions",
+            "💡 AI Recommendations",
+            "💎 Client Lifetime Value",
+            "⚠️ Churn Risk"
+        ])
+
+        with tab1:
+            st.markdown("### 🔮 Renewal Predictions (Next 90 Days)")
+            st.markdown("Machine learning model predicts which policies are likely to renew based on historical patterns.")
+
+            # Get renewal predictions
+            predictions = get_renewal_predictions_for_agent(agent_id, days_ahead=90)
+
+            if predictions:
+                # Filter options
+                col_f1, col_f2 = st.columns(2)
+                with col_f1:
+                    risk_filter = st.selectbox(
+                        "Filter by Risk Level",
+                        options=['All', 'Critical Risk', 'High Risk', 'Medium Risk', 'Low Risk', 'Very Low Risk'],
+                        key="renewal_risk_filter"
+                    )
+
+                with col_f2:
+                    days_filter = st.slider(
+                        "Days Until Renewal",
+                        min_value=0,
+                        max_value=90,
+                        value=(0, 90),
+                        key="days_filter"
+                    )
+
+                # Apply filters
+                filtered = predictions
+                if risk_filter != 'All':
+                    filtered = [p for p in filtered if p['renewal_risk'] == risk_filter]
+                filtered = [p for p in filtered if days_filter[0] <= p['days_until_renewal'] <= days_filter[1]]
+
+                # Display summary
+                if filtered:
+                    st.markdown(f"**{len(filtered)} policies found**")
+
+                    # Create DataFrame for display
+                    df = pd.DataFrame(filtered)
+
+                    # Format display
+                    display_df = df[[
+                        'insured_name', 'policy_type', 'carrier', 'premium',
+                        'days_until_renewal', 'renewal_probability', 'renewal_risk', 'recommendation'
+                    ]].copy()
+
+                    display_df.columns = [
+                        'Client', 'Type', 'Carrier', 'Premium',
+                        'Days Until', 'Probability', 'Risk Level', 'Recommendation'
+                    ]
+
+                    # Format premium as currency
+                    display_df['Premium'] = display_df['Premium'].apply(lambda x: f"${x:,.2f}")
+
+                    # Format probability as percentage
+                    display_df['Probability'] = display_df['Probability'].apply(lambda x: f"{x*100:.1f}%")
+
+                    # Color code risk levels
+                    def highlight_risk(row):
+                        if row['Risk Level'] in ['Critical Risk', 'High Risk']:
+                            return ['background-color: #ffebee'] * len(row)
+                        elif row['Risk Level'] == 'Medium Risk':
+                            return ['background-color: #fff9c4'] * len(row)
+                        else:
+                            return ['background-color: #e8f5e9'] * len(row)
+
+                    st.dataframe(
+                        display_df.style.apply(highlight_risk, axis=1),
+                        use_container_width=True,
+                        height=400
+                    )
+
+                    # Export option
+                    csv = df.to_csv(index=False)
+                    st.download_button(
+                        label="📥 Export Predictions to CSV",
+                        data=csv,
+                        file_name=f"renewal_predictions_{datetime.now().strftime('%Y%m%d')}.csv",
+                        mime="text/csv"
+                    )
+
+                else:
+                    st.info("No policies match the selected filters.")
+
+            else:
+                st.info("No upcoming renewals in the next 90 days.")
+
+        with tab2:
+            st.markdown("### 💡 AI-Powered Recommendations")
+            st.markdown("Smart recommendations to grow your book of business and retain clients.")
+
+            # Get recommendations
+            recommendations = get_ai_recommendations_for_agent(agent_id, limit=50)
+
+            if recommendations:
+                # Filter by type
+                rec_types = ['All'] + list(set([r['type'] for r in recommendations]))
+                rec_filter = st.selectbox(
+                    "Filter by Type",
+                    options=rec_types,
+                    format_func=lambda x: {
+                        'All': 'All Recommendations',
+                        'cross_sell': 'Cross-Sell Opportunities',
+                        'upsell': 'Upsell Opportunities',
+                        'retention': 'Retention Actions',
+                        'contact_timing': 'Contact Timing',
+                        'prospecting': 'Prospecting Leads'
+                    }.get(x, x),
+                    key="rec_type_filter"
+                )
+
+                # Apply filter
+                filtered_recs = recommendations if rec_filter == 'All' else [r for r in recommendations if r['type'] == rec_filter]
+
+                st.markdown(f"**{len(filtered_recs)} recommendations**")
+
+                # Display recommendations as cards
+                for rec in filtered_recs[:20]:  # Show top 20
+                    with st.expander(f"**{rec['title']}** (Priority: {rec['priority_score']}/100)"):
+                        st.markdown(f"**Client:** {rec.get('client_name', 'N/A')}")
+                        st.markdown(f"**Type:** {rec['type'].replace('_', ' ').title()}")
+                        st.markdown(f"**Description:** {rec['description']}")
+                        st.markdown(f"**Recommended Action:** {rec['action']}")
+
+                        if rec.get('potential_value'):
+                            value = rec['potential_value']
+                            if value > 0:
+                                st.success(f"💰 Potential Value: +${value:,.2f}/year")
+                            else:
+                                st.error(f"⚠️ Revenue at Risk: ${abs(value):,.2f}/year")
+
+                        st.markdown(f"**Success Probability:** {rec.get('success_probability', 0)*100:.0f}%")
+
+            else:
+                st.info("No recommendations available at this time.")
+
+        with tab3:
+            st.markdown("### 💎 Client Lifetime Value (CLV)")
+            st.markdown("Understand the long-term value of your clients.")
+
+            # Get CLV data
+            clv_data = get_all_clients_clv(agency_id)
+
+            if clv_data:
+                # Summary stats
+                col_clv1, col_clv2, col_clv3, col_clv4 = st.columns(4)
+
+                with col_clv1:
+                    total_clv = sum([c['clv'] for c in clv_data])
+                    st.metric("Total Portfolio CLV", f"${total_clv:,.0f}")
+
+                with col_clv2:
+                    avg_clv = total_clv / len(clv_data) if clv_data else 0
+                    st.metric("Average CLV", f"${avg_clv:,.0f}")
+
+                with col_clv3:
+                    platinum = len([c for c in clv_data if c['tier'] == 'Platinum'])
+                    st.metric("Platinum Clients", platinum)
+
+                with col_clv4:
+                    gold = len([c for c in clv_data if c['tier'] == 'Gold'])
+                    st.metric("Gold Clients", gold)
+
+                st.divider()
+
+                # Filter by tier
+                tier_filter = st.selectbox(
+                    "Filter by Tier",
+                    options=['All', 'Platinum', 'Gold', 'Silver', 'Bronze'],
+                    key="clv_tier_filter"
+                )
+
+                # Apply filter
+                filtered_clv = clv_data if tier_filter == 'All' else [c for c in clv_data if c['tier'] == tier_filter]
+
+                # Display as table
+                if filtered_clv:
+                    clv_df = pd.DataFrame(filtered_clv[:100])  # Top 100
+                    display_clv = clv_df[[
+                        'client_name', 'tier', 'clv', 'avg_annual_premium',
+                        'retention_rate', 'lifespan_years', 'total_policies'
+                    ]].copy()
+
+                    display_clv.columns = [
+                        'Client', 'Tier', 'CLV', 'Avg Annual Premium',
+                        'Retention Rate', 'Avg Lifespan (Years)', 'Total Policies'
+                    ]
+
+                    # Format columns
+                    display_clv['CLV'] = display_clv['CLV'].apply(lambda x: f"${x:,.2f}")
+                    display_clv['Avg Annual Premium'] = display_clv['Avg Annual Premium'].apply(lambda x: f"${x:,.2f}")
+                    display_clv['Retention Rate'] = display_clv['Retention Rate'].apply(lambda x: f"{x*100:.1f}%")
+                    display_clv['Avg Lifespan (Years)'] = display_clv['Avg Lifespan (Years)'].apply(lambda x: f"{x:.1f}")
+
+                    # Color code by tier
+                    def highlight_tier(row):
+                        tier_colors = {
+                            'Platinum': ['background-color: #e1bee7'] * len(row),
+                            'Gold': ['background-color: #fff9c4'] * len(row),
+                            'Silver': ['background-color: #e0e0e0'] * len(row),
+                            'Bronze': ['background-color: #ffccbc'] * len(row)
+                        }
+                        return tier_colors.get(row['Tier'], [''] * len(row))
+
+                    st.dataframe(
+                        display_clv.style.apply(highlight_tier, axis=1),
+                        use_container_width=True,
+                        height=400
+                    )
+
+                    # Export option
+                    csv = clv_df.to_csv(index=False)
+                    st.download_button(
+                        label="📥 Export CLV Data to CSV",
+                        data=csv,
+                        file_name=f"client_clv_{datetime.now().strftime('%Y%m%d')}.csv",
+                        mime="text/csv"
+                    )
+
+                else:
+                    st.info("No clients match the selected tier.")
+
+            else:
+                st.info("No CLV data available yet.")
+
+        with tab4:
+            st.markdown("### ⚠️ Churn Risk Analysis")
+            st.markdown("Identify clients at risk of leaving and take proactive retention actions.")
+
+            # Get high-risk clients
+            high_risk = get_high_risk_clients(agency_id, risk_threshold=40)
+
+            if high_risk:
+                # Summary
+                col_risk1, col_risk2, col_risk3 = st.columns(3)
+
+                with col_risk1:
+                    critical = len([c for c in high_risk if c['risk_level'] == 'Critical'])
+                    st.metric("Critical Risk", critical, delta=f"{critical} urgent" if critical > 0 else "None", delta_color="inverse")
+
+                with col_risk2:
+                    high = len([c for c in high_risk if c['risk_level'] == 'High'])
+                    st.metric("High Risk", high)
+
+                with col_risk3:
+                    medium = len([c for c in high_risk if c['risk_level'] == 'Medium'])
+                    st.metric("Medium Risk", medium)
+
+                st.divider()
+
+                # Display clients
+                for client in high_risk[:20]:  # Top 20
+                    risk_score = client['churn_risk_score']
+                    risk_level = client['risk_level']
+
+                    # Color code
+                    if risk_level == 'Critical':
+                        color = '🔴'
+                    elif risk_level == 'High':
+                        color = '🟠'
+                    else:
+                        color = '🟡'
+
+                    with st.expander(f"{color} **{client['client_name']}** - Risk Score: {risk_score}/100"):
+                        st.markdown(f"**Risk Level:** {risk_level}")
+                        st.markdown(f"**Churn Risk Score:** {risk_score}/100")
+
+                        # Show risk factors
+                        if 'risk_factors' in client:
+                            st.markdown("**Risk Factors:**")
+                            factors = client['risk_factors']
+                            for factor_name, factor_score in factors.items():
+                                if factor_score > 50:  # Only show high factors
+                                    st.markdown(f"- {factor_name.replace('_', ' ').title()}: {factor_score:.1f}/100")
+
+                        # Retention strategy
+                        if 'retention_strategy' in client:
+                            st.info(f"**Recommended Action:** {client['retention_strategy']}")
+
+                        # Alert indicator
+                        if client.get('alert_agent', False):
+                            st.error("🚨 **URGENT**: Agent should be alerted immediately!")
+
+            else:
+                st.success("🎉 No high-risk clients detected! Your book of business is stable.")
 
     elif page == "🏆 Leaderboard":
         # Agent leaderboard (Task 3.2: Live Leaderboards)
