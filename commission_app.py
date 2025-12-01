@@ -6908,13 +6908,26 @@ def main():
     # Base navigation pages for all users
     if is_agent:
         # Agent-specific navigation (Phase 2)
+        # Get unread notification count for badge
+        agent_id = st.session_state.get('agent_id')
+        unread_count = 0
+        if agent_id:
+            try:
+                from utils.agent_data_helpers import get_unread_notification_count
+                unread_count = get_unread_notification_count(agent_id)
+            except Exception as e:
+                print(f"Error getting unread count for navigation: {e}")
+
+        # Build notification label with badge
+        notification_label = f"🔔 Notifications ({unread_count})" if unread_count > 0 else "🔔 Notifications"
+
         navigation_pages = [
             "📊 My Dashboard",  # Agent personal dashboard
             "💰 My Commissions",  # Agent commission statements
             "📋 My Policies",  # Agent's policies
             "🏆 Leaderboard",  # See rankings
             "🎯 Goals & Badges",  # Gamification
-            "🔔 Notifications",  # Agent notifications
+            notification_label,  # Agent notifications with unread count
             "Account",
             "Help"
         ]
@@ -17983,24 +17996,116 @@ CREATE TABLE IF NOT EXISTS deleted_policies (
         
         with tab4:
             st.subheader("Preferences")
-            
-            st.write("**Email Notifications**")
-            col1, col2 = st.columns(2)
-            with col1:
-                st.checkbox("Payment confirmations", value=True)
-                st.checkbox("Weekly summary reports", value=False)
-            with col2:
-                st.checkbox("Policy renewal reminders", value=True)
-                st.checkbox("System updates", value=True)
-            
-            st.divider()
-            
-            st.write("**Display Settings**")
+
+            # Check if user is an agent to show notification preferences
+            is_agent = st.session_state.get('is_agent', False)
+            agent_id = st.session_state.get('agent_id')
+
+            if is_agent and agent_id:
+                # Sprint 5 Task 5.2: Email Notification Preferences
+                from utils.agent_data_helpers import get_agent_notification_preferences, update_agent_notification_preferences
+
+                st.markdown("### 📧 Email Notification Settings")
+                st.write("Control when and how you receive email notifications from the system.")
+
+                # Get current preferences
+                prefs = get_agent_notification_preferences(agent_id)
+
+                # Master switch
+                email_enabled = st.checkbox(
+                    "Enable Email Notifications",
+                    value=prefs.get('email_enabled', True),
+                    help="Master switch to enable/disable all email notifications"
+                )
+
+                st.divider()
+
+                # Specific notification types
+                st.markdown("#### Notification Types")
+                st.caption("Choose which types of notifications you want to receive via email:")
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    commission_statement_email = st.checkbox(
+                        "💰 New Commission Statements",
+                        value=prefs.get('commission_statement_email', True),
+                        disabled=not email_enabled,
+                        help="Get notified when new commission statements are available"
+                    )
+
+                    critical_renewal_email = st.checkbox(
+                        "⚠️ Critical Renewal Alerts",
+                        value=prefs.get('critical_renewal_email', True),
+                        disabled=not email_enabled,
+                        help="Get notified about renewals that are past due or due soon"
+                    )
+
+                    achievement_email = st.checkbox(
+                        "🏆 Achievements & Badges",
+                        value=prefs.get('achievement_email', True),
+                        disabled=not email_enabled,
+                        help="Get notified when you earn new badges or achievements"
+                    )
+
+                with col2:
+                    discrepancy_email = st.checkbox(
+                        "📋 Discrepancy Updates",
+                        value=prefs.get('discrepancy_email', True),
+                        disabled=not email_enabled,
+                        help="Get notified when commission discrepancies are resolved"
+                    )
+
+                    weekly_digest = st.checkbox(
+                        "📊 Weekly Performance Digest",
+                        value=prefs.get('weekly_digest', True),
+                        disabled=not email_enabled,
+                        help="Receive a weekly summary of your performance"
+                    )
+
+                # Weekly digest day selection
+                if weekly_digest and email_enabled:
+                    st.markdown("#### Weekly Digest Settings")
+                    digest_day = st.selectbox(
+                        "Preferred day for weekly digest",
+                        ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
+                        index=["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].index(
+                            prefs.get('digest_day', 'monday').lower()
+                        ),
+                        help="Choose which day of the week you want to receive your weekly performance digest"
+                    )
+                else:
+                    digest_day = prefs.get('digest_day', 'monday')
+
+                st.divider()
+
+                # Save button
+                if st.button("💾 Save Notification Preferences", type="primary", use_container_width=True):
+                    new_prefs = {
+                        'email_enabled': email_enabled,
+                        'weekly_digest': weekly_digest,
+                        'commission_statement_email': commission_statement_email,
+                        'critical_renewal_email': critical_renewal_email,
+                        'achievement_email': achievement_email,
+                        'discrepancy_email': discrepancy_email,
+                        'digest_day': digest_day
+                    }
+
+                    if update_agent_notification_preferences(agent_id, new_prefs):
+                        st.success("✅ Notification preferences saved successfully!")
+                    else:
+                        st.error("❌ Failed to save notification preferences. Please try again.")
+
+                st.divider()
+
+            st.markdown("### 🎨 Display Settings")
             st.selectbox("Date Format", ["MM/DD/YYYY", "DD/MM/YYYY", "YYYY-MM-DD"])
             st.selectbox("Currency", ["USD ($)", "CAD (C$)", "EUR (€)"])
-            
-            if st.button("Save Preferences", type="primary"):
-                st.success("Preferences saved!")
+
+            if not (is_agent and agent_id):
+                # Only show Save button for display settings if not an agent
+                if st.button("Save Preferences", type="primary"):
+                    st.success("Preferences saved!")
     
         display_app_footer()
     
@@ -24076,17 +24181,203 @@ CREATE TABLE IF NOT EXISTS deleted_policies (
                 st.caption(f"   *Criteria: {badge_def['criteria']}*")
                 st.markdown("")
 
-    elif page == "🔔 Notifications":
-        # Agent notifications
+    elif page.startswith("🔔 Notifications"):
+        # Agent notifications - Sprint 5 (handle both "🔔 Notifications" and "🔔 Notifications (N)")
+        from utils.agent_data_helpers import (
+            get_agent_notifications,
+            get_unread_notification_count,
+            mark_notification_read,
+            mark_all_notifications_read,
+            delete_notification
+        )
+
         st.title("🔔 Notifications")
-        st.info("🚧 **Notifications** coming in Sprint 5!")
-        st.markdown("""
-        ### Stay Updated:
-        - 📢 Agency announcements
-        - 🎉 Achievement notifications
-        - 📋 Policy updates
-        - 💰 Commission received alerts
-        """)
+
+        # Get agent ID
+        agent_id = st.session_state.get('agent_id')
+        if not agent_id:
+            st.error("Agent ID not found. Please log in again.")
+            st.stop()
+
+        # Get unread count
+        unread_count = get_unread_notification_count(agent_id)
+
+        # Header with stats
+        col1, col2, col3 = st.columns([2, 1, 1])
+        with col1:
+            st.subheader(f"You have {unread_count} unread notification{'s' if unread_count != 1 else ''}")
+        with col2:
+            if st.button("Mark All Read", use_container_width=True):
+                if mark_all_notifications_read(agent_id):
+                    st.success("All notifications marked as read!")
+                    st.rerun()
+                else:
+                    st.error("Failed to mark all as read")
+        with col3:
+            if st.button("Refresh", use_container_width=True):
+                st.rerun()
+
+        st.divider()
+
+        # Filter options
+        col1, col2 = st.columns(2)
+        with col1:
+            show_unread_only = st.checkbox("Unread only", value=False)
+        with col2:
+            notification_type_filter = st.selectbox(
+                "Filter by type",
+                ["All", "Commission Statement", "Renewal Due", "Badge Earned", "Agency Announcement"],
+                index=0
+            )
+
+        # Map filter to notification_type
+        type_map = {
+            "Commission Statement": "commission_statement",
+            "Renewal Due": "renewal_due",
+            "Badge Earned": "badge_earned",
+            "Agency Announcement": "agency_announcement"
+        }
+        selected_type = type_map.get(notification_type_filter) if notification_type_filter != "All" else None
+
+        # Get notifications
+        notifications = get_agent_notifications(
+            agent_id=agent_id,
+            unread_only=show_unread_only,
+            notification_type=selected_type,
+            limit=50
+        )
+
+        if not notifications:
+            st.info("No notifications to display. You're all caught up!")
+        else:
+            # Display notifications
+            for notification in notifications:
+                notification_id = notification['id']
+                is_read = notification.get('read', False)
+                priority = notification.get('priority', 'normal')
+                notification_type = notification.get('notification_type', '')
+                title = notification.get('title', '')
+                message = notification.get('message', '')
+                created_at = notification.get('created_at', '')
+                action_url = notification.get('action_url')
+
+                # Format timestamp
+                try:
+                    from datetime import datetime
+                    created_dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                    time_str = created_dt.strftime("%b %d, %Y at %I:%M %p")
+                except:
+                    time_str = created_at
+
+                # Priority badge
+                priority_colors = {
+                    'critical': '🔴',
+                    'high': '🟠',
+                    'normal': '🟢',
+                    'low': '⚪'
+                }
+                priority_badge = priority_colors.get(priority, '🟢')
+
+                # Type icon
+                type_icons = {
+                    'commission_statement': '💰',
+                    'renewal_due': '📋',
+                    'badge_earned': '🏆',
+                    'agency_announcement': '📢',
+                    'new_team_member': '👥'
+                }
+                type_icon = type_icons.get(notification_type, '📬')
+
+                # Notification card
+                with st.container():
+                    # Background color based on read status
+                    if not is_read:
+                        st.markdown("""
+                        <style>
+                        .unread-notification {
+                            background-color: #f0f8ff;
+                            padding: 15px;
+                            border-radius: 8px;
+                            border-left: 4px solid #1f77b4;
+                            margin-bottom: 10px;
+                        }
+                        </style>
+                        """, unsafe_allow_html=True)
+
+                    col1, col2, col3 = st.columns([0.5, 6, 1.5])
+
+                    with col1:
+                        st.markdown(f"### {type_icon}")
+
+                    with col2:
+                        # Title with priority
+                        st.markdown(f"**{priority_badge} {title}**")
+                        st.caption(message)
+                        st.caption(f"⏰ {time_str}")
+
+                    with col3:
+                        # Action buttons
+                        button_col1, button_col2 = st.columns(2)
+
+                        with button_col1:
+                            # Toggle read/unread
+                            if is_read:
+                                if st.button("👁️", key=f"unread_{notification_id}", help="Mark as unread"):
+                                    mark_notification_read(notification_id, read=False)
+                                    st.rerun()
+                            else:
+                                if st.button("✓", key=f"read_{notification_id}", help="Mark as read"):
+                                    mark_notification_read(notification_id, read=True)
+                                    st.rerun()
+
+                        with button_col2:
+                            # Delete button
+                            if st.button("🗑️", key=f"delete_{notification_id}", help="Delete"):
+                                delete_notification(notification_id)
+                                st.rerun()
+
+                    st.divider()
+
+        # Notification stats
+        st.markdown("---")
+        st.subheader("📊 Notification Stats")
+
+        # Get all notifications for stats
+        all_notifications = get_agent_notifications(agent_id=agent_id, limit=100)
+
+        if all_notifications:
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                total = len(all_notifications)
+                st.metric("Total Notifications", total)
+
+            with col2:
+                unread = len([n for n in all_notifications if not n.get('read', False)])
+                st.metric("Unread", unread)
+
+            with col3:
+                read = len([n for n in all_notifications if n.get('read', False)])
+                st.metric("Read", read)
+
+            # Notification types breakdown
+            st.markdown("#### Notification Types")
+            type_counts = {}
+            for n in all_notifications:
+                ntype = n.get('notification_type', 'other')
+                type_counts[ntype] = type_counts.get(ntype, 0) + 1
+
+            type_display_names = {
+                'commission_statement': '💰 Commission Statements',
+                'renewal_due': '📋 Renewal Reminders',
+                'badge_earned': '🏆 Badges Earned',
+                'agency_announcement': '📢 Agency Announcements',
+                'new_team_member': '👥 New Team Members'
+            }
+
+            for ntype, count in sorted(type_counts.items(), key=lambda x: x[1], reverse=True):
+                display_name = type_display_names.get(ntype, ntype.replace('_', ' ').title())
+                st.write(f"{display_name}: **{count}**")
 
 # Call main function
 main()

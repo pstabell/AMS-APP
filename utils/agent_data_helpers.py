@@ -2092,3 +2092,888 @@ def get_renewal_calendar_data(
     except Exception as e:
         print(f"Error getting calendar data: {e}")
         return []
+
+
+# =============================================================================
+# SPRINT 5: NOTIFICATIONS & ENGAGEMENT
+# =============================================================================
+
+def create_notification(
+    agent_id: str,
+    notification_type: str,
+    title: str,
+    message: str,
+    action_url: str = None,
+    priority: str = 'normal',
+    supabase: Client = None
+) -> dict:
+    """
+    Create a new notification for an agent.
+
+    Args:
+        agent_id: Agent UUID
+        notification_type: Type of notification (commission_statement, renewal_due, badge_earned, etc.)
+        title: Notification title
+        message: Notification message
+        action_url: Optional URL to navigate to when clicked
+        priority: Priority level (critical, high, normal, low)
+        supabase: Supabase client
+
+    Returns:
+        dict: Created notification or None if error
+    """
+    try:
+        if not supabase:
+            url = os.getenv("SUPABASE_URL")
+            key = os.getenv("SUPABASE_ANON_KEY")
+            supabase = create_client(url, key)
+
+        notification_data = {
+            'agent_id': agent_id,
+            'notification_type': notification_type,
+            'title': title,
+            'message': message,
+            'action_url': action_url,
+            'priority': priority,
+            'read': False,
+            'created_at': datetime.utcnow().isoformat()
+        }
+
+        result = supabase.table('agent_notifications').insert(notification_data).execute()
+
+        if result.data:
+            return result.data[0]
+        return None
+
+    except Exception as e:
+        print(f"Error creating notification: {e}")
+        return None
+
+
+def get_agent_notifications(
+    agent_id: str,
+    unread_only: bool = False,
+    notification_type: str = None,
+    limit: int = 50,
+    supabase: Client = None
+) -> list:
+    """
+    Get notifications for an agent.
+
+    Args:
+        agent_id: Agent UUID
+        unread_only: If True, only return unread notifications
+        notification_type: Filter by notification type
+        limit: Maximum number of notifications to return
+        supabase: Supabase client
+
+    Returns:
+        list: List of notifications
+    """
+    try:
+        if not supabase:
+            url = os.getenv("SUPABASE_URL")
+            key = os.getenv("SUPABASE_ANON_KEY")
+            supabase = create_client(url, key)
+
+        query = supabase.table('agent_notifications').select('*').eq('agent_id', agent_id)
+
+        if unread_only:
+            query = query.eq('read', False)
+
+        if notification_type:
+            query = query.eq('notification_type', notification_type)
+
+        query = query.order('created_at', desc=True).limit(limit)
+
+        result = query.execute()
+        return result.data if result.data else []
+
+    except Exception as e:
+        print(f"Error getting notifications: {e}")
+        return []
+
+
+def get_unread_notification_count(agent_id: str, supabase: Client = None) -> int:
+    """
+    Get count of unread notifications for an agent.
+
+    Args:
+        agent_id: Agent UUID
+        supabase: Supabase client
+
+    Returns:
+        int: Count of unread notifications
+    """
+    try:
+        if not supabase:
+            url = os.getenv("SUPABASE_URL")
+            key = os.getenv("SUPABASE_ANON_KEY")
+            supabase = create_client(url, key)
+
+        result = supabase.table('agent_notifications').select('id', count='exact').eq('agent_id', agent_id).eq('read', False).execute()
+
+        return result.count if result.count else 0
+
+    except Exception as e:
+        print(f"Error getting unread count: {e}")
+        return 0
+
+
+def mark_notification_read(notification_id: str, read: bool = True, supabase: Client = None) -> bool:
+    """
+    Mark a notification as read or unread.
+
+    Args:
+        notification_id: Notification UUID
+        read: True to mark as read, False to mark as unread
+        supabase: Supabase client
+
+    Returns:
+        bool: Success status
+    """
+    try:
+        if not supabase:
+            url = os.getenv("SUPABASE_URL")
+            key = os.getenv("SUPABASE_ANON_KEY")
+            supabase = create_client(url, key)
+
+        result = supabase.table('agent_notifications').update({'read': read}).eq('id', notification_id).execute()
+
+        return result.data is not None
+
+    except Exception as e:
+        print(f"Error marking notification: {e}")
+        return False
+
+
+def mark_all_notifications_read(agent_id: str, supabase: Client = None) -> bool:
+    """
+    Mark all notifications as read for an agent.
+
+    Args:
+        agent_id: Agent UUID
+        supabase: Supabase client
+
+    Returns:
+        bool: Success status
+    """
+    try:
+        if not supabase:
+            url = os.getenv("SUPABASE_URL")
+            key = os.getenv("SUPABASE_ANON_KEY")
+            supabase = create_client(url, key)
+
+        result = supabase.table('agent_notifications').update({'read': True}).eq('agent_id', agent_id).eq('read', False).execute()
+
+        return True
+
+    except Exception as e:
+        print(f"Error marking all notifications read: {e}")
+        return False
+
+
+def delete_notification(notification_id: str, supabase: Client = None) -> bool:
+    """
+    Delete a notification.
+
+    Args:
+        notification_id: Notification UUID
+        supabase: Supabase client
+
+    Returns:
+        bool: Success status
+    """
+    try:
+        if not supabase:
+            url = os.getenv("SUPABASE_URL")
+            key = os.getenv("SUPABASE_ANON_KEY")
+            supabase = create_client(url, key)
+
+        result = supabase.table('agent_notifications').delete().eq('id', notification_id).execute()
+
+        return True
+
+    except Exception as e:
+        print(f"Error deleting notification: {e}")
+        return False
+
+
+def generate_renewal_due_notifications(days_threshold: int = 7, supabase: Client = None) -> int:
+    """
+    Auto-generate notifications for upcoming renewals.
+    Scans all agents' policies and creates notifications for renewals due within threshold.
+
+    Args:
+        days_threshold: Number of days before renewal to notify (default 7)
+        supabase: Supabase client
+
+    Returns:
+        int: Number of notifications created
+    """
+    try:
+        if not supabase:
+            url = os.getenv("SUPABASE_URL")
+            key = os.getenv("SUPABASE_ANON_KEY")
+            supabase = create_client(url, key)
+
+        # Get all agents
+        agents = supabase.table('agents').select('id, full_name, agency_id').eq('is_active', True).execute()
+
+        if not agents.data:
+            return 0
+
+        notifications_created = 0
+        today = datetime.now().date()
+        threshold_date = today + timedelta(days=days_threshold)
+
+        for agent in agents.data:
+            agent_id = agent['id']
+
+            # Get upcoming renewals for this agent
+            policies = supabase.table('policies').select('*').eq('agent_id', agent_id).eq('status', 'active').execute()
+
+            if not policies.data:
+                continue
+
+            for policy in policies.data:
+                if not policy.get('effective_date'):
+                    continue
+
+                effective_date = datetime.fromisoformat(policy['effective_date']).date()
+
+                # Calculate next renewal date (assuming 1-year term)
+                next_renewal = effective_date
+                while next_renewal <= today:
+                    next_renewal = next_renewal.replace(year=next_renewal.year + 1)
+
+                days_until_renewal = (next_renewal - today).days
+
+                # Check if renewal is within threshold
+                if 0 <= days_until_renewal <= days_threshold:
+                    # Check if notification already exists for this policy
+                    existing = supabase.table('agent_notifications').select('id').eq('agent_id', agent_id).eq('notification_type', 'renewal_due').like('message', f'%{policy["policy_number"]}%').eq('read', False).execute()
+
+                    if not existing.data:
+                        # Create notification
+                        priority = 'critical' if days_until_renewal <= 3 else 'high' if days_until_renewal <= 7 else 'normal'
+
+                        notification = create_notification(
+                            agent_id=agent_id,
+                            notification_type='renewal_due',
+                            title=f"Renewal Due in {days_until_renewal} Days",
+                            message=f"Policy {policy['policy_number']} for {policy.get('insured_name', 'Client')} is due for renewal on {next_renewal.strftime('%b %d, %Y')}",
+                            action_url=f"/my-policies?policy_id={policy['id']}",
+                            priority=priority,
+                            supabase=supabase
+                        )
+
+                        if notification:
+                            notifications_created += 1
+
+        return notifications_created
+
+    except Exception as e:
+        print(f"Error generating renewal notifications: {e}")
+        return 0
+
+
+def generate_badge_notification(agent_id: str, badge: dict, supabase: Client = None) -> dict:
+    """
+    Generate a notification when an agent earns a badge.
+
+    Args:
+        agent_id: Agent UUID
+        badge: Badge dictionary with title, description, icon
+        supabase: Supabase client
+
+    Returns:
+        dict: Created notification or None
+    """
+    try:
+        if not badge:
+            return None
+
+        return create_notification(
+            agent_id=agent_id,
+            notification_type='badge_earned',
+            title=f"Achievement Unlocked: {badge.get('title', 'New Badge')}",
+            message=f"Congratulations! You've earned the {badge.get('icon', '')} {badge.get('title', '')} badge. {badge.get('description', '')}",
+            action_url="/gamification",
+            priority='normal',
+            supabase=supabase
+        )
+
+    except Exception as e:
+        print(f"Error generating badge notification: {e}")
+        return None
+
+
+def generate_commission_statement_notification(
+    agent_id: str,
+    statement_date: str,
+    total_amount: float,
+    supabase: Client = None
+) -> dict:
+    """
+    Generate a notification for a new commission statement.
+
+    Args:
+        agent_id: Agent UUID
+        statement_date: Statement date string
+        total_amount: Total commission amount
+        supabase: Supabase client
+
+    Returns:
+        dict: Created notification or None
+    """
+    try:
+        return create_notification(
+            agent_id=agent_id,
+            notification_type='commission_statement',
+            title="New Commission Statement Available",
+            message=f"Your commission statement for {statement_date} is ready. Total: ${total_amount:,.2f}",
+            action_url="/commission-statements",
+            priority='high',
+            supabase=supabase
+        )
+
+    except Exception as e:
+        print(f"Error generating commission statement notification: {e}")
+        return None
+
+
+def generate_agency_announcement_notification(
+    agency_id: str,
+    title: str,
+    message: str,
+    priority: str = 'normal',
+    supabase: Client = None
+) -> int:
+    """
+    Generate notifications for all agents in an agency (for announcements).
+
+    Args:
+        agency_id: Agency UUID
+        title: Announcement title
+        message: Announcement message
+        priority: Priority level
+        supabase: Supabase client
+
+    Returns:
+        int: Number of notifications created
+    """
+    try:
+        if not supabase:
+            url = os.getenv("SUPABASE_URL")
+            key = os.getenv("SUPABASE_ANON_KEY")
+            supabase = create_client(url, key)
+
+        # Get all active agents in the agency
+        agents = supabase.table('agents').select('id').eq('agency_id', agency_id).eq('is_active', True).execute()
+
+        if not agents.data:
+            return 0
+
+        notifications_created = 0
+
+        for agent in agents.data:
+            notification = create_notification(
+                agent_id=agent['id'],
+                notification_type='agency_announcement',
+                title=title,
+                message=message,
+                priority=priority,
+                supabase=supabase
+            )
+
+            if notification:
+                notifications_created += 1
+
+        return notifications_created
+
+    except Exception as e:
+        print(f"Error generating agency announcements: {e}")
+        return 0
+
+
+# =============================================================================
+# EMAIL NOTIFICATIONS (SPRINT 5 - TASK 5.2)
+# =============================================================================
+
+def get_agent_notification_preferences(agent_id: str, supabase: Client = None) -> dict:
+    """
+    Get notification preferences for an agent.
+
+    Args:
+        agent_id: Agent UUID
+        supabase: Supabase client
+
+    Returns:
+        dict: Notification preferences or default preferences
+    """
+    try:
+        if not supabase:
+            url = os.getenv("SUPABASE_URL")
+            key = os.getenv("SUPABASE_ANON_KEY")
+            supabase = create_client(url, key)
+
+        result = supabase.table('agent_notification_preferences').select('*').eq('agent_id', agent_id).execute()
+
+        if result.data:
+            return result.data[0]
+
+        # Return default preferences
+        return {
+            'agent_id': agent_id,
+            'email_enabled': True,
+            'weekly_digest': True,
+            'commission_statement_email': True,
+            'critical_renewal_email': True,
+            'achievement_email': True,
+            'discrepancy_email': True,
+            'digest_day': 'monday',
+            'created_at': datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        print(f"Error getting notification preferences: {e}")
+        # Return default preferences on error
+        return {
+            'agent_id': agent_id,
+            'email_enabled': True,
+            'weekly_digest': True,
+            'commission_statement_email': True,
+            'critical_renewal_email': True,
+            'achievement_email': True,
+            'discrepancy_email': True,
+            'digest_day': 'monday'
+        }
+
+
+def update_agent_notification_preferences(agent_id: str, preferences: dict, supabase: Client = None) -> bool:
+    """
+    Update notification preferences for an agent.
+
+    Args:
+        agent_id: Agent UUID
+        preferences: Dictionary of preference settings
+        supabase: Supabase client
+
+    Returns:
+        bool: Success status
+    """
+    try:
+        if not supabase:
+            url = os.getenv("SUPABASE_URL")
+            key = os.getenv("SUPABASE_ANON_KEY")
+            supabase = create_client(url, key)
+
+        # Check if preferences already exist
+        existing = supabase.table('agent_notification_preferences').select('id').eq('agent_id', agent_id).execute()
+
+        preferences['agent_id'] = agent_id
+        preferences['updated_at'] = datetime.utcnow().isoformat()
+
+        if existing.data:
+            # Update existing preferences
+            result = supabase.table('agent_notification_preferences').update(preferences).eq('agent_id', agent_id).execute()
+        else:
+            # Insert new preferences
+            preferences['created_at'] = datetime.utcnow().isoformat()
+            result = supabase.table('agent_notification_preferences').insert(preferences).execute()
+
+        return result.data is not None
+
+    except Exception as e:
+        print(f"Error updating notification preferences: {e}")
+        return False
+
+
+def send_email_notification(
+    to_email: str,
+    subject: str,
+    body: str,
+    html_body: str = None,
+    agent_id: str = None,
+    supabase: Client = None
+) -> bool:
+    """
+    Send an email notification to an agent.
+
+    Args:
+        to_email: Recipient email address
+        subject: Email subject
+        body: Plain text email body
+        html_body: Optional HTML email body
+        agent_id: Optional agent UUID for preference checking
+        supabase: Supabase client
+
+    Returns:
+        bool: Success status
+    """
+    try:
+        # Check agent preferences first
+        if agent_id:
+            prefs = get_agent_notification_preferences(agent_id, supabase)
+            if not prefs.get('email_enabled', True):
+                print(f"Email notifications disabled for agent {agent_id}")
+                return False
+
+        # TODO: Integrate with actual email service (SendGrid, AWS SES, etc.)
+        # For now, just log the email
+        print(f"\n{'='*60}")
+        print(f"EMAIL NOTIFICATION")
+        print(f"{'='*60}")
+        print(f"To: {to_email}")
+        print(f"Subject: {subject}")
+        print(f"\n{body}")
+        print(f"{'='*60}\n")
+
+        # In production, replace with actual email service
+        # Example with SendGrid:
+        # import sendgrid
+        # sg = sendgrid.SendGridAPIClient(api_key=os.getenv('SENDGRID_API_KEY'))
+        # message = Mail(
+        #     from_email='notifications@youragency.com',
+        #     to_emails=to_email,
+        #     subject=subject,
+        #     plain_text_content=body,
+        #     html_content=html_body
+        # )
+        # response = sg.send(message)
+        # return response.status_code == 202
+
+        return True
+
+    except Exception as e:
+        print(f"Error sending email notification: {e}")
+        return False
+
+
+def send_commission_statement_email(
+    agent_id: str,
+    agent_email: str,
+    statement_date: str,
+    total_amount: float,
+    supabase: Client = None
+) -> bool:
+    """
+    Send email notification for new commission statement.
+
+    Args:
+        agent_id: Agent UUID
+        agent_email: Agent email address
+        statement_date: Statement date string
+        total_amount: Total commission amount
+        supabase: Supabase client
+
+    Returns:
+        bool: Success status
+    """
+    try:
+        # Check preferences
+        prefs = get_agent_notification_preferences(agent_id, supabase)
+        if not prefs.get('commission_statement_email', True):
+            return False
+
+        subject = f"New Commission Statement - {statement_date}"
+        body = f"""
+Hello,
+
+Your commission statement for {statement_date} is now available.
+
+Total Commission: ${total_amount:,.2f}
+
+Log in to your agent portal to view the full details:
+https://yourapp.com/commission-statements
+
+Best regards,
+Your Agency Team
+        """
+
+        html_body = f"""
+<html>
+<body style="font-family: Arial, sans-serif;">
+    <h2>New Commission Statement Available</h2>
+    <p>Hello,</p>
+    <p>Your commission statement for <strong>{statement_date}</strong> is now available.</p>
+    <div style="background-color: #f0f8ff; padding: 15px; border-radius: 5px; margin: 20px 0;">
+        <h3 style="margin: 0; color: #1f77b4;">Total Commission: ${total_amount:,.2f}</h3>
+    </div>
+    <p>
+        <a href="https://yourapp.com/commission-statements"
+           style="background-color: #1f77b4; color: white; padding: 10px 20px;
+                  text-decoration: none; border-radius: 5px; display: inline-block;">
+            View Statement
+        </a>
+    </p>
+    <p>Best regards,<br>Your Agency Team</p>
+</body>
+</html>
+        """
+
+        return send_email_notification(agent_email, subject, body, html_body, agent_id, supabase)
+
+    except Exception as e:
+        print(f"Error sending commission statement email: {e}")
+        return False
+
+
+def send_critical_renewal_email(
+    agent_id: str,
+    agent_email: str,
+    policy_number: str,
+    insured_name: str,
+    renewal_date: str,
+    days_until_renewal: int,
+    supabase: Client = None
+) -> bool:
+    """
+    Send email notification for critical renewal (past due or due soon).
+
+    Args:
+        agent_id: Agent UUID
+        agent_email: Agent email address
+        policy_number: Policy number
+        insured_name: Insured name
+        renewal_date: Renewal date string
+        days_until_renewal: Days until renewal (negative if past due)
+        supabase: Supabase client
+
+    Returns:
+        bool: Success status
+    """
+    try:
+        # Check preferences
+        prefs = get_agent_notification_preferences(agent_id, supabase)
+        if not prefs.get('critical_renewal_email', True):
+            return False
+
+        if days_until_renewal < 0:
+            subject = f"URGENT: Policy Renewal Past Due - {policy_number}"
+            status = f"PAST DUE by {abs(days_until_renewal)} days"
+        else:
+            subject = f"URGENT: Policy Renewal Due in {days_until_renewal} Days - {policy_number}"
+            status = f"Due in {days_until_renewal} days"
+
+        body = f"""
+URGENT: Action Required
+
+Policy {policy_number} for {insured_name} is {status}.
+
+Renewal Date: {renewal_date}
+
+Please contact the client immediately to process this renewal.
+
+Log in to your agent portal to view details:
+https://yourapp.com/my-policies
+
+Best regards,
+Your Agency Team
+        """
+
+        html_body = f"""
+<html>
+<body style="font-family: Arial, sans-serif;">
+    <div style="background-color: #ff4444; color: white; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+        <h2 style="margin: 0;">⚠️ URGENT: Action Required</h2>
+    </div>
+    <p>Policy <strong>{policy_number}</strong> for <strong>{insured_name}</strong> is <strong style="color: #ff4444;">{status}</strong>.</p>
+    <div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ffc107;">
+        <p style="margin: 0;"><strong>Renewal Date:</strong> {renewal_date}</p>
+    </div>
+    <p>Please contact the client immediately to process this renewal.</p>
+    <p>
+        <a href="https://yourapp.com/my-policies"
+           style="background-color: #ff4444; color: white; padding: 10px 20px;
+                  text-decoration: none; border-radius: 5px; display: inline-block;">
+            View Policy
+        </a>
+    </p>
+    <p>Best regards,<br>Your Agency Team</p>
+</body>
+</html>
+        """
+
+        return send_email_notification(agent_email, subject, body, html_body, agent_id, supabase)
+
+    except Exception as e:
+        print(f"Error sending critical renewal email: {e}")
+        return False
+
+
+def send_achievement_email(
+    agent_id: str,
+    agent_email: str,
+    badge_title: str,
+    badge_description: str,
+    supabase: Client = None
+) -> bool:
+    """
+    Send email notification for achievement/badge earned.
+
+    Args:
+        agent_id: Agent UUID
+        agent_email: Agent email address
+        badge_title: Badge title
+        badge_description: Badge description
+        supabase: Supabase client
+
+    Returns:
+        bool: Success status
+    """
+    try:
+        # Check preferences
+        prefs = get_agent_notification_preferences(agent_id, supabase)
+        if not prefs.get('achievement_email', True):
+            return False
+
+        subject = f"🏆 Achievement Unlocked: {badge_title}"
+        body = f"""
+Congratulations!
+
+You've earned a new achievement: {badge_title}
+
+{badge_description}
+
+Keep up the great work! Log in to see all your badges and achievements:
+https://yourapp.com/gamification
+
+Best regards,
+Your Agency Team
+        """
+
+        html_body = f"""
+<html>
+<body style="font-family: Arial, sans-serif;">
+    <div style="background-color: #28a745; color: white; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+        <h2 style="margin: 0;">🏆 Achievement Unlocked!</h2>
+    </div>
+    <p>Congratulations!</p>
+    <div style="background-color: #f0f8ff; padding: 20px; border-radius: 5px; margin: 20px 0; text-align: center;">
+        <h3 style="margin: 0; color: #1f77b4;">{badge_title}</h3>
+        <p style="margin: 10px 0 0 0; color: #666;">{badge_description}</p>
+    </div>
+    <p>Keep up the great work!</p>
+    <p>
+        <a href="https://yourapp.com/gamification"
+           style="background-color: #28a745; color: white; padding: 10px 20px;
+                  text-decoration: none; border-radius: 5px; display: inline-block;">
+            View All Achievements
+        </a>
+    </p>
+    <p>Best regards,<br>Your Agency Team</p>
+</body>
+</html>
+        """
+
+        return send_email_notification(agent_email, subject, body, html_body, agent_id, supabase)
+
+    except Exception as e:
+        print(f"Error sending achievement email: {e}")
+        return False
+
+
+def send_weekly_digest_email(agent_id: str, agent_email: str, supabase: Client = None) -> bool:
+    """
+    Send weekly performance digest email to agent.
+
+    Args:
+        agent_id: Agent UUID
+        agent_email: Agent email address
+        supabase: Supabase client
+
+    Returns:
+        bool: Success status
+    """
+    try:
+        # Check preferences
+        prefs = get_agent_notification_preferences(agent_id, supabase)
+        if not prefs.get('weekly_digest', True):
+            return False
+
+        # Get agent stats for the week
+        from datetime import datetime, timedelta
+        today = datetime.now()
+        week_start = today - timedelta(days=7)
+
+        # Get performance data
+        performance = get_agent_performance_metrics(agent_id, period='last_7_days', supabase=supabase)
+        ranking = get_agent_ranking(agent_id, supabase=supabase)
+
+        total_commission = performance.get('total_commission', 0)
+        policies_written = performance.get('policies_written', 0)
+        rank = ranking.get('rank', 'N/A')
+        total_agents = ranking.get('total_agents', 0)
+
+        subject = f"Your Weekly Performance Summary - {today.strftime('%b %d, %Y')}"
+        body = f"""
+Weekly Performance Summary
+
+Week of {week_start.strftime('%b %d')} - {today.strftime('%b %d, %Y')}
+
+📊 Your Performance:
+- Total Commission: ${total_commission:,.2f}
+- Policies Written: {policies_written}
+- Current Rank: #{rank} out of {total_agents} agents
+
+🏆 Keep up the great work!
+
+Log in to view detailed reports:
+https://yourapp.com/my-dashboard
+
+Best regards,
+Your Agency Team
+        """
+
+        html_body = f"""
+<html>
+<body style="font-family: Arial, sans-serif;">
+    <h2>Weekly Performance Summary</h2>
+    <p style="color: #666;">Week of {week_start.strftime('%b %d')} - {today.strftime('%b %d, %Y')}</p>
+
+    <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
+        <h3 style="margin-top: 0;">📊 Your Performance</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+                <td style="padding: 10px 0;"><strong>Total Commission:</strong></td>
+                <td style="padding: 10px 0; text-align: right; color: #28a745; font-size: 18px;">
+                    <strong>${total_commission:,.2f}</strong>
+                </td>
+            </tr>
+            <tr>
+                <td style="padding: 10px 0;"><strong>Policies Written:</strong></td>
+                <td style="padding: 10px 0; text-align: right; font-size: 18px;">
+                    <strong>{policies_written}</strong>
+                </td>
+            </tr>
+            <tr>
+                <td style="padding: 10px 0;"><strong>Current Rank:</strong></td>
+                <td style="padding: 10px 0; text-align: right; font-size: 18px;">
+                    <strong>#{rank} out of {total_agents} agents</strong>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <p>🏆 Keep up the great work!</p>
+
+    <p>
+        <a href="https://yourapp.com/my-dashboard"
+           style="background-color: #1f77b4; color: white; padding: 10px 20px;
+                  text-decoration: none; border-radius: 5px; display: inline-block;">
+            View Detailed Reports
+        </a>
+    </p>
+
+    <p>Best regards,<br>Your Agency Team</p>
+</body>
+</html>
+        """
+
+        return send_email_notification(agent_email, subject, body, html_body, agent_id, supabase)
+
+    except Exception as e:
+        print(f"Error sending weekly digest email: {e}")
+        return False
