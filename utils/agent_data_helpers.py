@@ -331,3 +331,218 @@ def get_agent_recent_activity(agent_id: str, limit: int = 10) -> List[Dict[str, 
     except Exception as e:
         print(f"Error getting agent recent activity: {e}")
         return []
+
+
+def get_agent_growth_metrics(agent_id: str) -> Dict[str, Any]:
+    """
+    Calculate growth metrics for an agent (MoM, YoY).
+
+    Args:
+        agent_id: Agent's unique ID
+
+    Returns:
+        Dict with mom_growth, yoy_growth, premium_trend, etc.
+    """
+    if not supabase:
+        return {
+            'mom_growth': 0,
+            'yoy_growth': 0,
+            'premium_trend': 'stable',
+            'commission_trend': 'stable'
+        }
+
+    try:
+        current_year = datetime.now().year
+        current_month = datetime.now().month
+        last_month = current_month - 1 if current_month > 1 else 12
+        last_month_year = current_year if current_month > 1 else current_year - 1
+
+        # Get current month metrics
+        current_month_start = f"{current_year}-{current_month:02d}-01"
+        current_metrics = get_agent_performance_metrics(agent_id, current_year)
+
+        # Get last month metrics (approximate)
+        last_month_start = f"{last_month_year}-{last_month:02d}-01"
+        last_month_metrics = get_agent_performance_metrics(agent_id, last_month_year)
+
+        # Get last year metrics
+        last_year_metrics = get_agent_performance_metrics(agent_id, current_year - 1)
+
+        # Calculate MoM growth (rough approximation)
+        current_premium = current_metrics['premium_ytd']
+        last_year_premium = last_year_metrics['premium_ytd']
+
+        # YoY growth
+        yoy_growth = ((current_premium - last_year_premium) / last_year_premium * 100) if last_year_premium > 0 else 0
+
+        # Determine trends
+        premium_trend = 'up' if current_premium > last_year_premium else 'down' if current_premium < last_year_premium else 'stable'
+        commission_trend = 'up' if current_metrics['commission_ytd'] > last_year_metrics['commission_ytd'] else 'down'
+
+        return {
+            'mom_growth': 0,  # Would need more granular data
+            'yoy_growth': round(yoy_growth, 1),
+            'premium_trend': premium_trend,
+            'commission_trend': commission_trend,
+            'current_year_premium': current_premium,
+            'last_year_premium': last_year_premium
+        }
+
+    except Exception as e:
+        print(f"Error calculating growth metrics: {e}")
+        return {
+            'mom_growth': 0,
+            'yoy_growth': 0,
+            'premium_trend': 'stable',
+            'commission_trend': 'stable'
+        }
+
+
+def get_agent_performance_indicators(agent_id: str, agency_id: str, year: int = None) -> Dict[str, Any]:
+    """
+    Get performance indicators comparing agent to agency benchmarks.
+
+    Args:
+        agent_id: Agent's unique ID
+        agency_id: Agency ID
+        year: Year to analyze
+
+    Returns:
+        Dict with performance indicators, badges, status
+    """
+    if not supabase:
+        return {
+            'status': 'average',
+            'badges': [],
+            'strengths': [],
+            'areas_to_improve': []
+        }
+
+    try:
+        if year is None:
+            year = datetime.now().year
+
+        # Get agent and agency metrics
+        agent_metrics = get_agent_performance_metrics(agent_id, year)
+        agency_avg = get_agency_average_metrics(agency_id, year)
+        rank_info = get_agent_rank(agent_id, agency_id, year)
+
+        # Calculate performance indicators
+        premium_vs_avg = (agent_metrics['premium_ytd'] / agency_avg['avg_premium'] * 100) if agency_avg['avg_premium'] > 0 else 0
+        commission_vs_avg = (agent_metrics['commission_ytd'] / agency_avg['avg_commission'] * 100) if agency_avg['avg_commission'] > 0 else 0
+        policies_vs_avg = (agent_metrics['policies_count'] / agency_avg['avg_policies'] * 100) if agency_avg['avg_policies'] > 0 else 0
+
+        # Determine status
+        if rank_info['rank'] <= 3:
+            status = 'top_performer'
+        elif premium_vs_avg >= 100:
+            status = 'above_average'
+        elif premium_vs_avg >= 80:
+            status = 'average'
+        else:
+            status = 'needs_improvement'
+
+        # Identify badges
+        badges = []
+        if rank_info['rank'] == 1:
+            badges.append('🥇 Top Producer')
+        elif rank_info['rank'] <= 3:
+            badges.append('🏆 Top 3')
+        if premium_vs_avg >= 150:
+            badges.append('⭐ Premium Star')
+        if agent_metrics['policies_count'] > agency_avg['avg_policies'] * 1.5:
+            badges.append('📋 Volume Leader')
+
+        # Identify strengths
+        strengths = []
+        if premium_vs_avg >= 110:
+            strengths.append('Premium volume above average')
+        if commission_vs_avg >= 110:
+            strengths.append('Commission earnings above average')
+        if policies_vs_avg >= 110:
+            strengths.append('Policy count above average')
+        if agent_metrics['avg_premium_per_policy'] > agency_avg['avg_premium'] / agency_avg['avg_policies'] * 1.1:
+            strengths.append('High-value policies')
+
+        # Identify areas to improve
+        areas_to_improve = []
+        if premium_vs_avg < 90:
+            areas_to_improve.append('Increase premium volume')
+        if policies_vs_avg < 90:
+            areas_to_improve.append('Write more policies')
+        if agent_metrics['avg_premium_per_policy'] < agency_avg['avg_premium'] / agency_avg['avg_policies'] * 0.9:
+            areas_to_improve.append('Focus on higher-value policies')
+
+        return {
+            'status': status,
+            'badges': badges,
+            'strengths': strengths,
+            'areas_to_improve': areas_to_improve,
+            'premium_vs_avg_pct': round(premium_vs_avg, 1),
+            'commission_vs_avg_pct': round(commission_vs_avg, 1),
+            'policies_vs_avg_pct': round(policies_vs_avg, 1)
+        }
+
+    except Exception as e:
+        print(f"Error getting performance indicators: {e}")
+        return {
+            'status': 'average',
+            'badges': [],
+            'strengths': [],
+            'areas_to_improve': []
+        }
+
+
+def get_agent_goal_progress(agent_id: str, year: int = None) -> Dict[str, Any]:
+    """
+    Get agent's progress toward goals (placeholder for future goal tracking).
+
+    Args:
+        agent_id: Agent's unique ID
+        year: Year to analyze
+
+    Returns:
+        Dict with goal progress information
+    """
+    if not supabase:
+        return {
+            'has_goals': False,
+            'goals': []
+        }
+
+    try:
+        if year is None:
+            year = datetime.now().year
+
+        # Get current metrics
+        metrics = get_agent_performance_metrics(agent_id, year)
+
+        # Example goals (in future, these would come from database)
+        example_goals = [
+            {
+                'type': 'premium',
+                'target': 500000,
+                'current': metrics['premium_ytd'],
+                'progress': (metrics['premium_ytd'] / 500000 * 100) if metrics['premium_ytd'] > 0 else 0,
+                'label': 'Premium Goal'
+            },
+            {
+                'type': 'policies',
+                'target': 100,
+                'current': metrics['policies_count'],
+                'progress': (metrics['policies_count'] / 100 * 100) if metrics['policies_count'] > 0 else 0,
+                'label': 'Policy Count Goal'
+            }
+        ]
+
+        return {
+            'has_goals': True,
+            'goals': example_goals
+        }
+
+    except Exception as e:
+        print(f"Error getting goal progress: {e}")
+        return {
+            'has_goals': False,
+            'goals': []
+        }

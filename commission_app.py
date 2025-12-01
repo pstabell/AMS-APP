@@ -22568,7 +22568,10 @@ CREATE TABLE IF NOT EXISTS deleted_policies (
             get_agent_monthly_trends,
             get_agent_carrier_breakdown,
             get_agency_average_metrics,
-            get_agent_recent_activity
+            get_agent_recent_activity,
+            get_agent_growth_metrics,
+            get_agent_performance_indicators,
+            get_agent_goal_progress
         )
         import plotly.express as px
         import plotly.graph_objects as go
@@ -22701,6 +22704,88 @@ CREATE TABLE IF NOT EXISTS deleted_policies (
         ])
         fig.update_layout(barmode='group', title='Your Performance vs. Agency Average')
         st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown("---")
+
+        # Growth metrics and performance indicators
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("### 📈 Growth & Trends")
+            growth_metrics = get_agent_growth_metrics(agent_id)
+
+            # YoY Growth
+            yoy_growth = growth_metrics['yoy_growth']
+            yoy_color = "green" if yoy_growth > 0 else "red" if yoy_growth < 0 else "gray"
+            st.metric(
+                "Year-over-Year Growth",
+                f"{yoy_growth:+.1f}%",
+                delta="vs. last year"
+            )
+
+            # Trend indicators
+            premium_trend = growth_metrics['premium_trend']
+            trend_emoji = "📈" if premium_trend == 'up' else "📉" if premium_trend == 'down' else "➡️"
+            st.info(f"{trend_emoji} Premium Trend: **{premium_trend.upper()}**")
+
+        with col2:
+            st.markdown("### 🎯 Performance Status")
+            perf_indicators = get_agent_performance_indicators(agent_id, agency_id, selected_year)
+
+            # Status badge
+            status = perf_indicators['status']
+            status_colors = {
+                'top_performer': '🌟',
+                'above_average': '✅',
+                'average': '➡️',
+                'needs_improvement': '⚠️'
+            }
+            status_emoji = status_colors.get(status, '➡️')
+            st.info(f"{status_emoji} Status: **{status.replace('_', ' ').title()}**")
+
+            # Display earned badges
+            if perf_indicators['badges']:
+                st.success("**Badges Earned:**")
+                for badge in perf_indicators['badges']:
+                    st.write(f"- {badge}")
+
+        st.markdown("---")
+
+        # Strengths and areas to improve
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("### 💪 Your Strengths")
+            strengths = perf_indicators['strengths']
+            if strengths:
+                for strength in strengths:
+                    st.markdown(f"✅ {strength}")
+            else:
+                st.info("Keep working to build your strengths!")
+
+        with col2:
+            st.markdown("### 🎯 Areas to Improve")
+            areas = perf_indicators['areas_to_improve']
+            if areas:
+                for area in areas:
+                    st.markdown(f"🔹 {area}")
+            else:
+                st.success("Great job! Keep up the good work!")
+
+        st.markdown("---")
+
+        # Goal progress (placeholder)
+        st.markdown("### 🎯 Your Goals")
+        goal_progress = get_agent_goal_progress(agent_id, selected_year)
+
+        if goal_progress['has_goals']:
+            for goal in goal_progress['goals']:
+                progress_pct = min(goal['progress'], 100)
+                st.write(f"**{goal['label']}**: ${goal['current']:,.0f} / ${goal['target']:,.0f}")
+                st.progress(progress_pct / 100)
+                st.caption(f"{progress_pct:.0f}% complete")
+        else:
+            st.info("💡 Set goals to track your progress! (Coming in Sprint 3)")
 
         st.markdown("---")
 
