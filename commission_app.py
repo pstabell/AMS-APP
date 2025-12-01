@@ -6938,6 +6938,12 @@ def main():
             from config import is_feature_enabled
             if is_feature_enabled('onedrive_documents'):
                 navigation_pages.insert(4, "📁 Documents")  # Insert after AI Insights
+
+            # Add Commission Reconciliation feature if enabled (Phase 3, Sprint 5, Task 5.2)
+            if is_feature_enabled('commission_reconciliation'):
+                # Insert before Settings
+                settings_idx = navigation_pages.index("⚙️ Settings")
+                navigation_pages.insert(settings_idx, "🔄 Reconciliation")
         except ImportError:
             pass  # config.py not found, skip feature
     else:
@@ -24436,6 +24442,350 @@ AMS Documents/
             st.markdown(f"**Tenant ID:** {manager.tenant_id[:8]}..." if manager.tenant_id else "Not configured")
             st.markdown(f"**Client ID:** {manager.client_id[:8]}..." if manager.client_id else "Not configured")
             st.markdown(f"**Configured:** {'Yes' if manager.is_configured() else 'No'}")
+
+    elif page == "🔄 Reconciliation":
+        # Phase 3, Sprint 5, Task 5.2: Automated Commission Reconciliation
+        from utils.agent_data_helpers import run_commission_reconciliation, save_reconciliation_report, get_reconciliation_reports, export_reconciliation_to_csv
+        from utils.commission_reconciliation import CommissionReconciler
+        from supabase import create_client
+        import tempfile
+        import os
+        from datetime import datetime, timedelta
+
+        st.title("🔄 Commission Reconciliation")
+        st.markdown("Automatically match carrier commission statements against expected commissions from your policies.")
+
+        agency_id = st.session_state.get('agency_id')
+        user_id = st.session_state.get('user_id')
+
+        if not agency_id or not user_id:
+            st.error("Missing agency or user information.")
+            st.stop()
+
+        # Initialize Supabase
+        SUPABASE_URL = os.environ.get("SUPABASE_URL")
+        SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
+
+        if not supabase:
+            st.error("Database not configured. Please set SUPABASE_URL and SUPABASE_KEY environment variables.")
+            st.stop()
+
+        # Tabs for different reconciliation functions
+        tab1, tab2, tab3 = st.tabs(["📤 New Reconciliation", "📊 Reports", "📖 Help"])
+
+        with tab1:
+            st.markdown("### Upload Carrier Statement")
+            st.markdown("Upload a CSV file from your carrier (State Farm, Progressive, Allstate, etc.) and we'll automatically match it against your expected commissions.")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                # Period selection
+                st.markdown("#### Reconciliation Period")
+                period_start = st.date_input(
+                    "Period Start Date",
+                    value=datetime.now().replace(day=1) - timedelta(days=1),  # First day of last month
+                    help="Start of the commission period"
+                )
+                period_end = st.date_input(
+                    "Period End Date",
+                    value=datetime.now().replace(day=1) - timedelta(days=1),  # Last day of last month
+                    help="End of the commission period"
+                )
+
+            with col2:
+                # Carrier selection (optional)
+                st.markdown("#### Carrier (Optional)")
+                carrier_options = [
+                    "Auto-detect",
+                    "State Farm",
+                    "Progressive",
+                    "Allstate",
+                    "Geico",
+                    "Nationwide",
+                    "Liberty Mutual",
+                    "Farmers",
+                    "USAA",
+                    "Travelers",
+                    "American Family",
+                    "Other"
+                ]
+                carrier_selection = st.selectbox(
+                    "Carrier",
+                    carrier_options,
+                    help="Select carrier or let system auto-detect"
+                )
+                carrier = None if carrier_selection == "Auto-detect" else carrier_selection
+
+            st.divider()
+
+            # File upload
+            uploaded_file = st.file_uploader(
+                "Upload Carrier Statement (CSV)",
+                type=['csv'],
+                help="Upload the commission statement CSV file from your carrier"
+            )
+
+            if uploaded_file is not None:
+                st.success(f"✅ File uploaded: {uploaded_file.name}")
+
+                # Preview first few rows
+                with st.expander("Preview CSV"):
+                    import pandas as pd
+                    preview_df = pd.read_csv(uploaded_file)
+                    st.dataframe(preview_df.head(10))
+                    uploaded_file.seek(0)  # Reset file pointer
+
+                st.divider()
+
+                # Run reconciliation button
+                if st.button("🔄 Run Reconciliation", type="primary", use_container_width=True):
+                    with st.spinner("Running reconciliation... This may take a minute."):
+                        try:
+                            # Save uploaded file to temp location
+                            with tempfile.NamedTemporaryFile(mode='wb', suffix='.csv', delete=False) as tmp_file:
+                                tmp_file.write(uploaded_file.getvalue())
+                                tmp_path = tmp_file.name
+
+                            # Run reconciliation
+                            results = run_commission_reconciliation(
+                                supabase=supabase,
+                                carrier_statement_path=tmp_path,
+                                agency_id=agency_id,
+                                start_date=datetime.combine(period_start, datetime.min.time()),
+                                end_date=datetime.combine(period_end, datetime.max.time()),
+                                carrier=carrier
+                            )
+
+                            # Clean up temp file
+                            os.unlink(tmp_path)
+
+                            # Check for errors
+                            if 'error' in results:
+                                st.error(f"❌ Reconciliation failed: {results['error']}")
+                            else:
+                                # Save to database
+                                save_success = save_reconciliation_report(
+                                    supabase=supabase,
+                                    reconciliation_results=results,
+                                    agency_id=agency_id,
+                                    user_id=user_id
+                                )
+
+                                if save_success:
+                                    st.success("✅ Reconciliation completed and saved!")
+                                else:
+                                    st.warning("⚠️ Reconciliation completed but failed to save to database.")
+
+                                # Display results
+                                summary = results['summary']
+
+                                st.markdown("### 📊 Reconciliation Results")
+
+                                # Summary metrics
+                                metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+
+                                with metric_col1:
+                                    st.metric(
+                                        "Match Rate",
+                                        f"{summary['match_rate']:.1f}%",
+                                        delta=None,
+                                        help="Percentage of expected transactions that matched"
+                                    )
+
+                                with metric_col2:
+                                    st.metric(
+                                        "Matched Transactions",
+                                        f"{summary['matched_count']}/{summary['total_expected']}",
+                                        delta=None
+                                    )
+
+                                with metric_col3:
+                                    st.metric(
+                                        "Amount Difference",
+                                        f"${summary['total_difference']:,.2f}",
+                                        delta=f"${summary['total_difference']:,.2f}",
+                                        delta_color="inverse"
+                                    )
+
+                                with metric_col4:
+                                    total_issues = summary['missing_count'] + summary['unexpected_count'] + summary['discrepancy_count']
+                                    st.metric(
+                                        "Total Issues",
+                                        total_issues,
+                                        delta=None
+                                    )
+
+                                st.divider()
+
+                                # Detailed results tabs
+                                if total_issues > 0:
+                                    issue_tab1, issue_tab2, issue_tab3 = st.tabs([
+                                        f"❌ Missing ({summary['missing_count']})",
+                                        f"➕ Unexpected ({summary['unexpected_count']})",
+                                        f"⚠️ Discrepancies ({summary['discrepancy_count']})"
+                                    ])
+
+                                    with issue_tab1:
+                                        if summary['missing_count'] > 0:
+                                            st.markdown("**Commissions expected but not found in carrier statement:**")
+                                            missing_df = pd.DataFrame(results['missing_from_statement'])
+                                            st.dataframe(missing_df, use_container_width=True)
+                                        else:
+                                            st.success("✅ No missing commissions!")
+
+                                    with issue_tab2:
+                                        if summary['unexpected_count'] > 0:
+                                            st.markdown("**Commissions in carrier statement but not expected:**")
+                                            unexpected_df = pd.DataFrame(results['unexpected_in_statement'])
+                                            st.dataframe(unexpected_df, use_container_width=True)
+                                        else:
+                                            st.success("✅ No unexpected commissions!")
+
+                                    with issue_tab3:
+                                        if summary['discrepancy_count'] > 0:
+                                            st.markdown("**Matched transactions with amount differences:**")
+                                            discrepancy_df = pd.DataFrame(results['amount_discrepancies'])
+                                            st.dataframe(discrepancy_df, use_container_width=True)
+                                        else:
+                                            st.success("✅ No amount discrepancies!")
+
+                                    # Export button
+                                    st.divider()
+                                    if st.button("💾 Export Issues to CSV", use_container_width=True):
+                                        export_path = tempfile.mktemp(suffix='.csv')
+                                        if export_reconciliation_to_csv(results, export_path):
+                                            with open(export_path, 'rb') as f:
+                                                st.download_button(
+                                                    label="⬇️ Download CSV",
+                                                    data=f,
+                                                    file_name=f"reconciliation_issues_{period_start}_{period_end}.csv",
+                                                    mime="text/csv",
+                                                    use_container_width=True
+                                                )
+                                            os.unlink(export_path)
+                                else:
+                                    st.success("🎉 Perfect match! No issues found.")
+
+                        except Exception as e:
+                            st.error(f"❌ Error running reconciliation: {str(e)}")
+                            import traceback
+                            st.code(traceback.format_exc())
+
+        with tab2:
+            st.markdown("### 📊 Reconciliation Reports")
+            st.markdown("View history of commission reconciliation reports.")
+
+            # Get recent reports
+            reports = get_reconciliation_reports(supabase, agency_id, limit=50)
+
+            if reports:
+                # Summary view
+                reports_df = pd.DataFrame(reports)
+
+                # Format dates
+                reports_df['period_start'] = pd.to_datetime(reports_df['period_start']).dt.strftime('%Y-%m-%d')
+                reports_df['period_end'] = pd.to_datetime(reports_df['period_end']).dt.strftime('%Y-%m-%d')
+                reports_df['created_at'] = pd.to_datetime(reports_df['created_at']).dt.strftime('%Y-%m-%d %H:%M')
+
+                # Select columns to display
+                display_cols = [
+                    'created_at', 'carrier', 'period_start', 'period_end',
+                    'match_rate', 'matched_count', 'total_expected',
+                    'missing_count', 'unexpected_count', 'discrepancy_count',
+                    'total_difference'
+                ]
+                display_df = reports_df[display_cols].copy()
+
+                # Format currency
+                display_df['total_difference'] = display_df['total_difference'].apply(lambda x: f"${x:,.2f}")
+                display_df['match_rate'] = display_df['match_rate'].apply(lambda x: f"{x:.1f}%")
+
+                # Rename columns for display
+                display_df.columns = [
+                    'Date', 'Carrier', 'Period Start', 'Period End',
+                    'Match Rate', 'Matched', 'Expected',
+                    'Missing', 'Unexpected', 'Discrepancies',
+                    'Difference'
+                ]
+
+                st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+                # Stats summary
+                st.divider()
+                st.markdown("### 📈 Summary Statistics")
+
+                stat_col1, stat_col2, stat_col3 = st.columns(3)
+
+                with stat_col1:
+                    avg_match_rate = reports_df['match_rate'].mean()
+                    st.metric("Average Match Rate", f"{avg_match_rate:.1f}%")
+
+                with stat_col2:
+                    total_reconciliations = len(reports)
+                    st.metric("Total Reconciliations", total_reconciliations)
+
+                with stat_col3:
+                    total_variance = reports_df['total_difference'].sum()
+                    st.metric("Total Variance", f"${total_variance:,.2f}")
+
+            else:
+                st.info("📭 No reconciliation reports yet. Upload a carrier statement above to get started!")
+
+        with tab3:
+            st.markdown("### 📖 How to Use Commission Reconciliation")
+
+            st.markdown("""
+            #### What is Commission Reconciliation?
+
+            Commission reconciliation automatically matches carrier commission statements against the expected commissions
+            from your policies in the database. This helps you:
+
+            - **Save Time**: No more manual Excel reconciliation (saves 3-5 hours/month)
+            - **Catch Errors**: Automatically detect missing commissions or incorrect amounts
+            - **Track Accuracy**: See which carriers pay accurately and which have frequent errors
+            - **Agency-Wide View**: See discrepancies across all agents (not just one agent)
+
+            #### How to Reconcile
+
+            1. **Get Carrier Statement**: Download your monthly commission statement from your carrier as a CSV file
+            2. **Select Period**: Choose the start and end dates for the commission period
+            3. **Upload File**: Upload the CSV file (we support State Farm, Progressive, Allstate, and more)
+            4. **Run Reconciliation**: Click "Run Reconciliation" and wait for results
+            5. **Review Issues**: See what's missing, unexpected, or has amount differences
+            6. **Export & Follow Up**: Export issues to CSV and follow up with carrier
+
+            #### Supported Carriers
+
+            We automatically detect and handle different CSV formats from:
+
+            - State Farm
+            - Progressive
+            - Allstate
+            - Geico
+            - Nationwide
+            - Liberty Mutual
+            - Farmers
+            - USAA
+            - Travelers
+            - American Family
+            - Most other carriers (generic format)
+
+            #### Understanding Results
+
+            - **Match Rate**: Percentage of expected commissions that were found in carrier statement
+            - **Missing**: Expected commissions that weren't in the carrier statement (you may be owed money!)
+            - **Unexpected**: Commissions in carrier statement that weren't expected (might be corrections or errors)
+            - **Discrepancies**: Matched transactions but with wrong amounts (check for rate or premium errors)
+
+            #### Tips for Best Results
+
+            - Reconcile monthly right after receiving carrier statements
+            - Keep your policies up to date in the database
+            - Export issues and follow up with carrier within 30 days
+            - Track match rate over time by carrier to identify problem carriers
+            """)
 
     elif page == "🏆 Leaderboard":
         # Agent leaderboard (Task 3.2: Live Leaderboards)

@@ -3503,3 +3503,263 @@ def get_ai_analytics_summary(agent_id: str = None, agency_id: str = None, supaba
     except Exception as e:
         print(f"Error getting AI analytics summary: {e}")
         return summary
+
+
+# =============================================================================
+# COMMISSION RECONCILIATION FUNCTIONS (PHASE 3, SPRINT 5, TASK 5.2)
+# =============================================================================
+
+def run_commission_reconciliation(supabase, carrier_statement_path: str, agency_id: str,
+                                 start_date: datetime, end_date: datetime,
+                                 carrier: str = None):
+    """
+    Run commission reconciliation for an agency.
+
+    Args:
+        supabase: Supabase client
+        carrier_statement_path: Path to uploaded carrier CSV statement
+        agency_id: Agency UUID
+        start_date: Period start date
+        end_date: Period end date
+        carrier: Carrier name (auto-detected if None)
+
+    Returns:
+        Reconciliation results dict with matched, missing, and discrepancy data
+    """
+    try:
+        from utils.commission_reconciliation import reconcile_carrier_statement
+
+        # Get all policies for this agency
+        policies_response = supabase.table('policies').select('*').eq('agency_id', agency_id).execute()
+
+        if not policies_response.data:
+            return {
+                'error': 'No policies found for this agency',
+                'summary': {
+                    'total_expected': 0,
+                    'total_in_statement': 0,
+                    'matched_count': 0,
+                    'missing_count': 0,
+                    'unexpected_count': 0,
+                    'discrepancy_count': 0,
+                    'match_rate': 0,
+                    'total_expected_amount': 0,
+                    'total_actual_amount': 0,
+                    'total_difference': 0
+                }
+            }
+
+        # Convert to DataFrame
+        policies_df = pd.DataFrame(policies_response.data)
+
+        # Run reconciliation
+        results = reconcile_carrier_statement(
+            carrier_statement_path=carrier_statement_path,
+            policies_df=policies_df,
+            agency_id=agency_id,
+            start_date=start_date,
+            end_date=end_date,
+            carrier=carrier
+        )
+
+        return results
+
+    except Exception as e:
+        print(f"Error running commission reconciliation: {e}")
+        return {
+            'error': str(e),
+            'summary': {
+                'total_expected': 0,
+                'total_in_statement': 0,
+                'matched_count': 0,
+                'missing_count': 0,
+                'unexpected_count': 0,
+                'discrepancy_count': 0,
+                'match_rate': 0,
+                'total_expected_amount': 0,
+                'total_actual_amount': 0,
+                'total_difference': 0
+            }
+        }
+
+
+def save_reconciliation_report(supabase, reconciliation_results: Dict, agency_id: str,
+                               user_id: str) -> bool:
+    """
+    Save reconciliation report to database.
+
+    Args:
+        supabase: Supabase client
+        reconciliation_results: Results from run_commission_reconciliation()
+        agency_id: Agency UUID
+        user_id: User who ran the reconciliation
+
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        # Prepare report data
+        report_data = {
+            'agency_id': agency_id,
+            'user_id': user_id,
+            'period_start': reconciliation_results['metadata']['period_start'],
+            'period_end': reconciliation_results['metadata']['period_end'],
+            'carrier': reconciliation_results['metadata']['carrier'],
+            'total_expected': reconciliation_results['summary']['total_expected'],
+            'total_in_statement': reconciliation_results['summary']['total_in_statement'],
+            'matched_count': reconciliation_results['summary']['matched_count'],
+            'missing_count': reconciliation_results['summary']['missing_count'],
+            'unexpected_count': reconciliation_results['summary']['unexpected_count'],
+            'discrepancy_count': reconciliation_results['summary']['discrepancy_count'],
+            'match_rate': reconciliation_results['summary']['match_rate'],
+            'total_expected_amount': reconciliation_results['summary']['total_expected_amount'],
+            'total_actual_amount': reconciliation_results['summary']['total_actual_amount'],
+            'total_difference': reconciliation_results['summary']['total_difference'],
+            'full_results': reconciliation_results,  # Store entire results as JSONB
+        }
+
+        # Insert into database
+        response = supabase.table('reconciliation_reports').insert(report_data).execute()
+
+        return response.data is not None
+
+    except Exception as e:
+        print(f"Error saving reconciliation report: {e}")
+        return False
+
+
+def get_reconciliation_reports(supabase, agency_id: str, limit: int = 50):
+    """
+    Get recent reconciliation reports for an agency.
+
+    Args:
+        supabase: Supabase client
+        agency_id: Agency UUID
+        limit: Max number of reports to return
+
+    Returns:
+        List of reconciliation reports, sorted by most recent first
+    """
+    try:
+        response = supabase.table('reconciliation_reports') \
+            .select('*') \
+            .eq('agency_id', agency_id) \
+            .order('created_at', desc=True) \
+            .limit(limit) \
+            .execute()
+
+        return response.data if response.data else []
+
+    except Exception as e:
+        print(f"Error getting reconciliation reports: {e}")
+        return []
+
+
+def get_reconciliation_report_by_id(supabase, report_id: str):
+    """
+    Get a specific reconciliation report by ID.
+
+    Args:
+        supabase: Supabase client
+        report_id: Report UUID
+
+    Returns:
+        Reconciliation report dict or None
+    """
+    try:
+        response = supabase.table('reconciliation_reports') \
+            .select('*') \
+            .eq('id', report_id) \
+            .single() \
+            .execute()
+
+        return response.data
+
+    except Exception as e:
+        print(f"Error getting reconciliation report: {e}")
+        return None
+
+
+def export_reconciliation_to_csv(reconciliation_results: Dict, output_path: str) -> bool:
+    """
+    Export reconciliation results to CSV for sharing with team/carriers.
+
+    Args:
+        reconciliation_results: Results from run_commission_reconciliation()
+        output_path: Path to save CSV file
+
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        # Create DataFrame from all discrepancies
+        all_issues = []
+
+        # Missing from statement
+        for item in reconciliation_results.get('missing_from_statement', []):
+            all_issues.append({
+                'Issue Type': 'Missing from Statement',
+                'Policy Number': item['policy_number'],
+                'Client Name': item['client_name'],
+                'Agent Name': item['agent_name'],
+                'Expected Amount': item['expected_amount'],
+                'Actual Amount': 0,
+                'Difference': -item['expected_amount'],
+                'Effective Date': item['effective_date'],
+                'Carrier': item.get('carrier', ''),
+                'Status': item.get('status', '')
+            })
+
+        # Unexpected in statement
+        for item in reconciliation_results.get('unexpected_in_statement', []):
+            all_issues.append({
+                'Issue Type': 'Unexpected in Statement',
+                'Policy Number': item['policy_number'],
+                'Client Name': item['client_name'],
+                'Agent Name': '',
+                'Expected Amount': 0,
+                'Actual Amount': item['actual_amount'],
+                'Difference': item['actual_amount'],
+                'Effective Date': item['effective_date'],
+                'Carrier': '',
+                'Status': ''
+            })
+
+        # Amount discrepancies
+        for item in reconciliation_results.get('amount_discrepancies', []):
+            all_issues.append({
+                'Issue Type': 'Amount Discrepancy',
+                'Policy Number': item['policy_number'],
+                'Client Name': item['client_name'],
+                'Agent Name': item['agent_name'],
+                'Expected Amount': item['expected_amount'],
+                'Actual Amount': item['actual_amount'],
+                'Difference': item['difference'],
+                'Effective Date': item['effective_date'],
+                'Carrier': '',
+                'Status': ''
+            })
+
+        if all_issues:
+            df = pd.DataFrame(all_issues)
+            df.to_csv(output_path, index=False)
+            return True
+        else:
+            # No issues - create summary file
+            summary = reconciliation_results['summary']
+            df = pd.DataFrame([{
+                'Status': 'Perfect Match',
+                'Total Expected': summary['total_expected'],
+                'Total in Statement': summary['total_in_statement'],
+                'Matched': summary['matched_count'],
+                'Match Rate': f"{summary['match_rate']:.1f}%",
+                'Total Expected Amount': f"${summary['total_expected_amount']:,.2f}",
+                'Total Actual Amount': f"${summary['total_actual_amount']:,.2f}",
+                'Difference': f"${summary['total_difference']:,.2f}"
+            }])
+            df.to_csv(output_path, index=False)
+            return True
+
+    except Exception as e:
+        print(f"Error exporting reconciliation to CSV: {e}")
+        return False

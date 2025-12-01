@@ -21,10 +21,10 @@ FEATURES = {
 
     # Phase 3 Features
     'ai_insights': True,  # Sprint 3 - AI & Predictive Analytics
-    'onedrive_documents': True,  # Sprint 5, Task 5.3 - Document Management (NEW!)
+    'onedrive_documents': True,  # Sprint 5, Task 5.3 - Document Management
+    'commission_reconciliation': True,  # Sprint 5, Task 5.2 - Automated Commission Reconciliation (NEW!)
 
     # Future Features (not yet implemented)
-    'commission_reconciliation': False,  # Sprint 5, Task 5.2
     'white_label': False,  # Sprint 6
     'multi_language': False,  # Sprint 6
 }
