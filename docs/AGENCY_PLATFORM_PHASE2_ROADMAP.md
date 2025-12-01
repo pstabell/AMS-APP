@@ -1,9 +1,10 @@
 # Agency Platform - Phase 2 Roadmap
 
 **Created**: November 29, 2025
-**Branch**: agency-platform-phase2 (to be created)
+**Branch**: agency-platform-phase2 (created December 1, 2025)
 **Goal**: Individual Agent Experience & Gamification
-**Status**: 🎯 Planning
+**Status**: 🚀 In Progress - Sprint 1 Started
+**Progress**: Task 1.1 Complete (1/23 tasks = 4%)
 
 ---
 
@@ -24,9 +25,9 @@ Phase 1 gave agency owners a command center. Phase 2 empowers individual agents 
 
 ## 📊 Phase 2 Overview
 
-### Sprint 1: Agent Authentication & Dashboard (Week 1-2)
-- Task 1.1: Individual agent login flow
-- Task 1.2: Agent-specific dashboard
+### Sprint 1: Agent Authentication & Dashboard (Week 1-2) - IN PROGRESS
+- ✅ Task 1.1: Individual agent login flow (COMPLETE)
+- 🚧 Task 1.2: Agent-specific dashboard (In Progress)
 - Task 1.3: Personal performance metrics
 
 ### Sprint 2: Commission Statements & Reports (Week 3-4)
@@ -63,46 +64,48 @@ Phase 1 gave agency owners a command center. Phase 2 empowers individual agents 
 
 ### Sprint 1: Agent Authentication & Dashboard
 
-#### Task 1.1: Individual Agent Login Flow
+#### Task 1.1: Individual Agent Login Flow ✅ COMPLETE
 **Priority**: P0 (Blocker)
 **Estimated Effort**: 3 days
 **Dependencies**: Phase 1 complete
+**Status**: ✅ COMPLETE (Commit: bad78f6)
+**Completed**: December 1, 2025
 
 **Objectives:**
-- Agents can log in with their email/password
-- System detects if user is agent vs. agency owner
-- Redirect to appropriate dashboard based on role
-- Session state tracks agent_id and agency_id
+- ✅ Agents can log in with their email/password
+- ✅ System detects if user is agent vs. agency owner
+- ✅ Redirect to appropriate dashboard based on role
+- ✅ Session state tracks agent_id and agency_id
 
 **Implementation:**
 ```python
-# Agent login detection
-def get_user_role(user_id):
+# Agent login detection - IMPLEMENTED
+def get_user_role(user_email):
     # Check if user is agency owner
     agency = get_agency_by_owner(user_id)
     if agency:
-        return 'agency_owner', agency['id']
+        return {'role': 'agency_owner', 'agency_id': agency['id'], ...}
 
     # Check if user is agent
     agent = get_agent_by_user_id(user_id)
     if agent:
-        return 'agent', agent['id'], agent['agency_id']
+        return {'role': 'agent', 'agent_id': agent['id'], 'agency_id': agent['agency_id'], ...}
 
     # Solo agent (no agency)
-    return 'solo_agent', None
+    return {'role': 'solo_agent', ...}
 ```
 
 **Acceptance Criteria:**
-- [ ] Agent can log in with email/password
-- [ ] System correctly identifies agent role
-- [ ] Agent sees agent dashboard (not agency dashboard)
-- [ ] Session state has agent_id and agency_id
-- [ ] Navigation shows agent-appropriate menu items
+- ✅ Agent can log in with email/password
+- ✅ System correctly identifies agent role
+- ✅ Agent sees agent dashboard (not agency dashboard)
+- ✅ Session state has agent_id and agency_id
+- ✅ Navigation shows agent-appropriate menu items
 
-**Files to Create/Modify:**
-- `utils/agent_auth_helpers.py` - Agent authentication utilities
-- `commission_app.py` - Update login flow and navigation
-- `pages/agent_dashboard.py` - Create new agent dashboard
+**Files Created/Modified:**
+- ✅ `agency_auth_helpers.py` - Added get_user_role() function
+- ✅ `commission_app.py` - Updated login flow and navigation
+- ✅ Added placeholder agent pages (My Dashboard, My Commissions, etc.)
 
 ---
 
