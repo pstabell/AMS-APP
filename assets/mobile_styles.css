@@ -1,0 +1,330 @@
+/*
+Mobile Responsive Styles
+Sprint 6, Task 6.2: Mobile Responsiveness
+Optimizes the application for mobile devices and tablets
+*/
+
+/* =============================================================================
+   MOBILE BREAKPOINTS
+   ============================================================================= */
+
+/* Small phones: 320px - 480px */
+@media only screen and (max-width: 480px) {
+    /* Hide sidebar on very small screens */
+    [data-testid="stSidebar"] {
+        display: none;
+    }
+
+    /* Make metrics stack vertically */
+    [data-testid="stMetric"] {
+        width: 100% !important;
+        margin-bottom: 1rem;
+    }
+
+    /* Full-width buttons */
+    .stButton button {
+        width: 100% !important;
+        margin-bottom: 0.5rem;
+    }
+
+    /* Reduce font sizes */
+    h1 {
+        font-size: 1.5rem !important;
+    }
+
+    h2 {
+        font-size: 1.3rem !important;
+    }
+
+    h3 {
+        font-size: 1.1rem !important;
+    }
+
+    /* Stack columns vertically */
+    [data-testid="column"] {
+        width: 100% !important;
+        margin-bottom: 1rem;
+    }
+
+    /* Responsive tables */
+    table {
+        font-size: 0.8rem;
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+
+    /* Adjust padding */
+    .main .block-container {
+        padding: 1rem 0.5rem !important;
+    }
+}
+
+/* Phones and small tablets: 481px - 768px */
+@media only screen and (min-width: 481px) and (max-width: 768px) {
+    /* Collapsible sidebar */
+    [data-testid="stSidebar"] {
+        width: 200px !important;
+    }
+
+    /* Metrics in rows of 2 */
+    [data-testid="stMetric"] {
+        width: 48% !important;
+        display: inline-block;
+        margin-right: 2%;
+    }
+
+    /* Reduce font sizes */
+    h1 {
+        font-size: 1.8rem !important;
+    }
+
+    h2 {
+        font-size: 1.5rem !important;
+    }
+
+    /* Responsive tables */
+    table {
+        font-size: 0.9rem;
+    }
+
+    /* Adjust padding */
+    .main .block-container {
+        padding: 1.5rem 1rem !important;
+    }
+}
+
+/* Tablets: 769px - 1024px */
+@media only screen and (min-width: 769px) and (max-width: 1024px) {
+    /* Sidebar normal width */
+    [data-testid="stSidebar"] {
+        width: 250px !important;
+    }
+
+    /* Metrics in rows of 3 */
+    [data-testid="stMetric"] {
+        width: 32% !important;
+        display: inline-block;
+        margin-right: 1%;
+    }
+
+    /* Normal font sizes */
+    h1 {
+        font-size: 2rem !important;
+    }
+
+    h2 {
+        font-size: 1.6rem !important;
+    }
+}
+
+/* =============================================================================
+   TOUCH-FRIENDLY INTERACTIONS
+   ============================================================================= */
+
+/* Larger tap targets for mobile */
+@media only screen and (max-width: 768px) {
+    button, a, input, select {
+        min-height: 44px !important;
+        min-width: 44px !important;
+        font-size: 16px !important; /* Prevents iOS zoom on focus */
+    }
+
+    /* Larger checkbox and radio buttons */
+    input[type="checkbox"], input[type="radio"] {
+        transform: scale(1.5);
+        margin-right: 10px;
+    }
+
+    /* Expandable sections */
+    .streamlit-expanderHeader {
+        padding: 1rem !important;
+        font-size: 1.1rem !important;
+    }
+}
+
+/* =============================================================================
+   NOTIFICATION MOBILE STYLES
+   ============================================================================= */
+
+@media only screen and (max-width: 768px) {
+    /* Notification cards stack better */
+    .notification-card {
+        padding: 1rem !important;
+        margin-bottom: 1rem !important;
+    }
+
+    /* Notification buttons full width */
+    .notification-actions button {
+        width: 100% !important;
+        margin-bottom: 0.5rem !important;
+    }
+}
+
+/* =============================================================================
+   DASHBOARD MOBILE OPTIMIZATION
+   ============================================================================= */
+
+@media only screen and (max-width: 768px) {
+    /* Charts take full width */
+    [data-testid="stPlotlyChart"] {
+        width: 100% !important;
+        height: 300px !important;
+    }
+
+    /* Dataframe scrollable */
+    [data-testid="stDataFrame"] {
+        overflow-x: auto !important;
+        display: block !important;
+    }
+
+    /* Hide less important columns on mobile */
+    .hide-on-mobile {
+        display: none !important;
+    }
+}
+
+/* =============================================================================
+   NAVIGATION MOBILE OPTIMIZATION
+   ============================================================================= */
+
+@media only screen and (max-width: 768px) {
+    /* Hamburger menu style */
+    [data-testid="stSidebarNav"] {
+        padding: 0.5rem !important;
+    }
+
+    /* Navigation items larger tap targets */
+    [data-testid="stSidebarNav"] label {
+        padding: 1rem !important;
+        font-size: 1rem !important;
+    }
+}
+
+/* =============================================================================
+   FORMS MOBILE OPTIMIZATION
+   ============================================================================= */
+
+@media only screen and (max-width: 768px) {
+    /* Form inputs full width */
+    .stTextInput input,
+    .stTextArea textarea,
+    .stSelectbox select,
+    .stDateInput input {
+        width: 100% !important;
+        font-size: 16px !important; /* Prevents iOS zoom */
+    }
+
+    /* Form labels */
+    label {
+        font-size: 1rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+
+    /* Form buttons */
+    .stForm button {
+        width: 100% !important;
+        margin-top: 1rem !important;
+    }
+}
+
+/* =============================================================================
+   LEADERBOARD MOBILE OPTIMIZATION
+   ============================================================================= */
+
+@media only screen and (max-width: 768px) {
+    /* Leaderboard table */
+    .leaderboard-table {
+        font-size: 0.9rem !important;
+    }
+
+    /* Rank badges larger */
+    .rank-badge {
+        font-size: 1.5rem !important;
+        padding: 0.5rem !important;
+    }
+}
+
+/* =============================================================================
+   BADGE GALLERY MOBILE OPTIMIZATION
+   ============================================================================= */
+
+@media only screen and (max-width: 768px) {
+    /* Badge cards in 2 columns */
+    .badge-card {
+        width: 48% !important;
+        display: inline-block !important;
+        margin: 1% !important;
+    }
+
+    /* Badge icons larger */
+    .badge-icon {
+        font-size: 3rem !important;
+    }
+}
+
+/* =============================================================================
+   PERFORMANCE OPTIMIZATIONS
+   ============================================================================= */
+
+/* Reduce animations on mobile for performance */
+@media only screen and (max-width: 768px) {
+    * {
+        animation-duration: 0.1s !important;
+        transition-duration: 0.1s !important;
+    }
+}
+
+/* =============================================================================
+   DARK MODE SUPPORT
+   ============================================================================= */
+
+@media (prefers-color-scheme: dark) {
+    /* Dark mode adjustments */
+    body {
+        background-color: #1e1e1e;
+        color: #ffffff;
+    }
+
+    .notification-card {
+        background-color: #2d2d2d !important;
+        border: 1px solid #444 !important;
+    }
+
+    input, select, textarea {
+        background-color: #2d2d2d !important;
+        color: #ffffff !important;
+        border: 1px solid #444 !important;
+    }
+}
+
+/* =============================================================================
+   PRINT STYLES
+   ============================================================================= */
+
+@media print {
+    /* Hide non-essential elements when printing */
+    [data-testid="stSidebar"],
+    .stButton,
+    .stDownloadButton,
+    header,
+    footer {
+        display: none !important;
+    }
+
+    /* Optimize for print */
+    body {
+        font-size: 12pt;
+        color: black;
+        background: white;
+    }
+
+    /* Page breaks */
+    h1, h2, h3 {
+        page-break-after: avoid;
+    }
+
+    table {
+        page-break-inside: avoid;
+    }
+}

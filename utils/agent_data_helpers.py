@@ -4,6 +4,7 @@ Utility functions for loading agent-specific performance data
 Created: December 1, 2025
 Branch: agency-platform-phase2
 Phase: 2, Sprint 1, Task 1.2
+Performance optimizations added: Sprint 6, Task 6.1
 """
 
 import os
@@ -11,11 +12,68 @@ from typing import Optional, Dict, List, Any
 from supabase import create_client
 from datetime import datetime, timedelta
 import pandas as pd
+import functools
+import time
 
 # Initialize Supabase client
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
+
+# =============================================================================
+# PERFORMANCE OPTIMIZATION UTILITIES (SPRINT 6 - TASK 6.1)
+# =============================================================================
+
+# In-memory cache for expensive operations
+_cache = {}
+_cache_timestamps = {}
+
+def cache_result(ttl_seconds=300):
+    """
+    Decorator to cache function results with time-to-live.
+
+    Args:
+        ttl_seconds: Time to live in seconds (default 5 minutes)
+
+    Usage:
+        @cache_result(ttl_seconds=600)
+        def expensive_function(arg1, arg2):
+            return result
+    """
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            # Create cache key from function name and arguments
+            cache_key = f"{func.__name__}:{str(args)}:{str(sorted(kwargs.items()))}"
+
+            # Check if cached result exists and is fresh
+            if cache_key in _cache:
+                cached_time = _cache_timestamps.get(cache_key, 0)
+                if time.time() - cached_time < ttl_seconds:
+                    return _cache[cache_key]
+
+            # Call function and cache result
+            result = func(*args, **kwargs)
+            _cache[cache_key] = result
+            _cache_timestamps[cache_key] = time.time()
+
+            return result
+        return wrapper
+    return decorator
+
+def clear_cache():
+    """Clear all cached results."""
+    global _cache, _cache_timestamps
+    _cache.clear()
+    _cache_timestamps.clear()
+
+def get_cache_stats():
+    """Get cache statistics."""
+    return {
+        'entries': len(_cache),
+        'size_bytes': sum(len(str(v)) for v in _cache.values()),
+        'oldest_entry': min(_cache_timestamps.values()) if _cache_timestamps else None
+    }
 
 
 def get_agent_performance_metrics(agent_id: str, year: int = None) -> Dict[str, Any]:
