@@ -6932,6 +6932,14 @@ def main():
             "Account",
             "Help"
         ]
+
+        # Add OneDrive Documents feature if enabled (Phase 3, Sprint 5, Task 5.3)
+        try:
+            from config import is_feature_enabled
+            if is_feature_enabled('onedrive_documents'):
+                navigation_pages.insert(4, "📁 Documents")  # Insert after AI Insights
+        except ImportError:
+            pass  # config.py not found, skip feature
     else:
         # Solo agent or agency owner - standard navigation
         navigation_pages = [
@@ -24134,6 +24142,300 @@ CREATE TABLE IF NOT EXISTS deleted_policies (
 
             else:
                 st.success("🎉 No high-risk clients detected! Your book of business is stable.")
+
+    elif page == "📁 Documents":
+        # Phase 3, Sprint 5, Task 5.3: Policy Document Auto-Filing with OneDrive
+        from utils.onedrive_manager import OneDriveDocumentManager, check_onedrive_available, index_document_in_database, search_documents_in_database
+        from supabase import create_client
+
+        st.title("📁 Document Management")
+        st.markdown("### Automatic Policy Document Organization")
+
+        agent_id = st.session_state.get('agent_id')
+        agency_id = st.session_state.get('agency_id')
+        user_id = st.session_state.get('user_id')
+
+        if not agent_id or not agency_id:
+            st.error("Missing agent or agency information.")
+            st.stop()
+
+        # Check if OneDrive is configured
+        is_available, message = check_onedrive_available()
+
+        if not is_available:
+            st.warning(f"⚠️ {message}")
+            st.info("""
+            **Setup Required:**
+
+            To enable document management, configure OneDrive integration:
+
+            1. Go to [Azure Portal](https://portal.azure.com)
+            2. Create app registration for Microsoft Graph API
+            3. Set environment variables:
+               - `MICROSOFT_TENANT_ID`
+               - `MICROSOFT_CLIENT_ID`
+               - `MICROSOFT_CLIENT_SECRET`
+
+            4. Install required libraries:
+               ```bash
+               pip install msal pypdf
+               ```
+
+            See `utils/onedrive_manager.py` for detailed setup instructions.
+            """)
+            st.stop()
+
+        # Initialize OneDrive manager
+        manager = OneDriveDocumentManager()
+
+        # Tabs for different functions
+        tab1, tab2, tab3 = st.tabs(["📤 Upload Documents", "🔍 Search Documents", "⚙️ Settings"])
+
+        with tab1:
+            st.markdown("### 📤 Upload Policy Documents")
+            st.markdown("Upload documents to automatically organize them in your OneDrive.")
+
+            # File uploader
+            uploaded_files = st.file_uploader(
+                "Choose files to upload",
+                type=['pdf', 'docx', 'xlsx', 'jpg', 'png'],
+                accept_multiple_files=True,
+                help="Select one or more policy documents to upload"
+            )
+
+            if uploaded_files:
+                st.markdown(f"**{len(uploaded_files)} file(s) selected**")
+
+                # Document metadata form
+                with st.form("document_metadata_form"):
+                    st.markdown("#### Document Information")
+
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        client_name = st.text_input(
+                            "Client Name",
+                            placeholder="Smith, John",
+                            help="Full name of the insured client"
+                        )
+
+                        policy_number = st.text_input(
+                            "Policy Number",
+                            placeholder="AUTO12345",
+                            help="Policy number (will be extracted from PDF if not provided)"
+                        )
+
+                    with col2:
+                        carrier = st.selectbox(
+                            "Insurance Carrier",
+                            options=['Progressive', 'State Farm', 'Geico', 'Allstate', 'Farmers',
+                                   'USAA', 'Liberty Mutual', 'Nationwide', 'Travelers', 'Other'],
+                            help="Select the insurance carrier"
+                        )
+
+                        doc_type = st.selectbox(
+                            "Document Type",
+                            options=['Declaration', 'Endorsement', 'Correspondence',
+                                   'Claim', 'Application', 'Quote', 'Certificate', 'Other'],
+                            help="Type of document being uploaded"
+                        )
+
+                    submit_button = st.form_submit_button("📤 Upload to OneDrive")
+
+                    if submit_button:
+                        if not client_name:
+                            st.error("Please enter a client name.")
+                        else:
+                            # Process uploads
+                            success_count = 0
+                            error_count = 0
+
+                            progress_bar = st.progress(0)
+                            status_text = st.empty()
+
+                            for idx, uploaded_file in enumerate(uploaded_files):
+                                try:
+                                    status_text.text(f"Uploading {uploaded_file.name}...")
+
+                                    # Save temporarily
+                                    temp_path = f"temp_{uploaded_file.name}"
+                                    with open(temp_path, 'wb') as f:
+                                        f.write(uploaded_file.getbuffer())
+
+                                    # Upload to OneDrive
+                                    result = manager.upload_document(
+                                        file_path=temp_path,
+                                        client_name=client_name,
+                                        policy_number=policy_number or 'UNKNOWN',
+                                        carrier=carrier,
+                                        doc_type=doc_type
+                                    )
+
+                                    # Index in database
+                                    supabase = create_client(
+                                        os.getenv('SUPABASE_URL'),
+                                        os.getenv('SUPABASE_KEY')
+                                    )
+
+                                    index_document_in_database(
+                                        supabase=supabase,
+                                        document_info=result,
+                                        agency_id=agency_id,
+                                        uploaded_by_user_id=user_id
+                                    )
+
+                                    # Clean up temp file
+                                    os.remove(temp_path)
+
+                                    success_count += 1
+
+                                except Exception as e:
+                                    st.error(f"❌ Failed to upload {uploaded_file.name}: {str(e)}")
+                                    error_count += 1
+                                    if os.path.exists(temp_path):
+                                        os.remove(temp_path)
+
+                                # Update progress
+                                progress = (idx + 1) / len(uploaded_files)
+                                progress_bar.progress(progress)
+
+                            # Final status
+                            status_text.empty()
+                            progress_bar.empty()
+
+                            if success_count > 0:
+                                st.success(f"✅ Successfully uploaded {success_count} document(s) to OneDrive!")
+
+                            if error_count > 0:
+                                st.warning(f"⚠️ {error_count} document(s) failed to upload.")
+
+        with tab2:
+            st.markdown("### 🔍 Search Documents")
+            st.markdown("Find documents organized in your OneDrive.")
+
+            # Search filters
+            col_search1, col_search2, col_search3 = st.columns(3)
+
+            with col_search1:
+                search_client = st.text_input(
+                    "Client Name",
+                    placeholder="Search by client name",
+                    key="search_client"
+                )
+
+            with col_search2:
+                search_policy = st.text_input(
+                    "Policy Number",
+                    placeholder="Search by policy number",
+                    key="search_policy"
+                )
+
+            with col_search3:
+                search_doc_type = st.selectbox(
+                    "Document Type",
+                    options=['All', 'Declaration', 'Endorsement', 'Correspondence',
+                           'Claim', 'Application', 'Quote', 'Certificate', 'Other'],
+                    key="search_doc_type"
+                )
+
+            if st.button("🔍 Search", type="primary"):
+                # Search database
+                supabase = create_client(
+                    os.getenv('SUPABASE_URL'),
+                    os.getenv('SUPABASE_KEY')
+                )
+
+                results = search_documents_in_database(
+                    supabase=supabase,
+                    agency_id=agency_id,
+                    client_name=search_client if search_client else None,
+                    policy_number=search_policy if search_policy else None,
+                    doc_type=search_doc_type if search_doc_type != 'All' else None,
+                    limit=100
+                )
+
+                if results:
+                    st.markdown(f"**Found {len(results)} document(s)**")
+
+                    # Display results
+                    for doc in results:
+                        with st.expander(f"📄 {doc['client_name']} - {doc['document_type']} ({doc['uploaded_at'][:10]})"):
+                            col_doc1, col_doc2 = st.columns([2, 1])
+
+                            with col_doc1:
+                                st.markdown(f"**Client:** {doc['client_name']}")
+                                st.markdown(f"**Policy:** {doc['policy_number']}")
+                                st.markdown(f"**Carrier:** {doc['carrier']}")
+                                st.markdown(f"**Document Type:** {doc['document_type']}")
+                                st.markdown(f"**Uploaded:** {doc['uploaded_at']}")
+
+                                if doc.get('extracted_text'):
+                                    with st.expander("Preview"):
+                                        st.text(doc['extracted_text'][:300] + "...")
+
+                            with col_doc2:
+                                if doc.get('onedrive_web_url'):
+                                    st.link_button(
+                                        "📂 Open in OneDrive",
+                                        doc['onedrive_web_url'],
+                                        use_container_width=True
+                                    )
+
+                                # Get fresh download URL
+                                if doc.get('onedrive_file_id'):
+                                    try:
+                                        download_url = manager.get_download_url(doc['onedrive_file_id'])
+                                        if download_url:
+                                            st.link_button(
+                                                "⬇️ Download",
+                                                download_url,
+                                                use_container_width=True
+                                            )
+                                    except:
+                                        pass  # Download URL not available
+
+                else:
+                    st.info("No documents found matching your search criteria.")
+
+        with tab3:
+            st.markdown("### ⚙️ Settings")
+
+            st.markdown("#### OneDrive Integration Status")
+
+            # Check authentication
+            try:
+                auth_success = manager.authenticate()
+                if auth_success:
+                    st.success("✅ Connected to Microsoft OneDrive")
+                    st.info(f"**Root Folder:** AMS Documents (in your OneDrive)")
+                else:
+                    st.error("❌ Authentication failed. Check your credentials.")
+            except Exception as e:
+                st.error(f"❌ Error: {str(e)}")
+
+            st.divider()
+
+            st.markdown("#### Folder Structure")
+            st.code("""
+AMS Documents/
+  ├── Clients/
+  │   ├── Smith_John/
+  │   │   ├── AUTO_12345_Progressive/
+  │   │   │   ├── 01_Declarations/
+  │   │   │   ├── 02_Endorsements/
+  │   │   │   ├── 03_Correspondence/
+  │   │   │   └── 04_Claims/
+  │   │   └── HOME_67890_StateFarm/
+  │   └── Johnson_Mary/
+  └── Templates/
+            """, language="text")
+
+            st.divider()
+
+            st.markdown("#### Configuration")
+            st.markdown(f"**Tenant ID:** {manager.tenant_id[:8]}..." if manager.tenant_id else "Not configured")
+            st.markdown(f"**Client ID:** {manager.client_id[:8]}..." if manager.client_id else "Not configured")
+            st.markdown(f"**Configured:** {'Yes' if manager.is_configured() else 'No'}")
 
     elif page == "🏆 Leaderboard":
         # Agent leaderboard (Task 3.2: Live Leaderboards)
