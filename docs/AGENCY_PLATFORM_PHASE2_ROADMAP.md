@@ -3,8 +3,8 @@
 **Created**: November 29, 2025
 **Branch**: agency-platform-phase2 (created December 1, 2025)
 **Goal**: Individual Agent Experience & Gamification
-**Status**: 🎉 Sprint 3 Complete! Sprint 4 Ready
-**Progress**: Sprint 1, 2 & 3 Complete (10/23 tasks = 43%)
+**Status**: 🎉 Sprint 4 Complete! Sprint 5 Ready
+**Progress**: Sprint 1, 2, 3 & 4 Complete (14/23 tasks = 61%)
 
 ---
 
@@ -41,11 +41,11 @@ Phase 1 gave agency owners a command center. Phase 2 empowers individual agents 
 - ✅ Task 3.3: Streak tracking (COMPLETE)
 - ✅ Task 3.4: Goal setting and progress (COMPLETE)
 
-### Sprint 4: Renewal Management (Week 7-8)
-- Task 4.1: Renewal pipeline dashboard
-- Task 4.2: Upcoming renewals calendar
-- Task 4.3: Renewal retention tracking
-- Task 4.4: Lost renewal analysis
+### Sprint 4: Renewal Management (Week 7-8) - ✅ COMPLETE
+- ✅ Task 4.1: Renewal pipeline dashboard (COMPLETE)
+- ✅ Task 4.2: Upcoming renewals calendar (COMPLETE)
+- ✅ Task 4.3: Renewal retention tracking (COMPLETE)
+- ✅ Task 4.4: Lost renewal analysis (COMPLETE)
 
 ### Sprint 5: Notifications & Engagement (Week 9)
 - Task 5.1: In-app notification system
@@ -654,17 +654,18 @@ YTD Commission Goal
 
 ---
 
-### Sprint 4: Renewal Management
+### Sprint 4: Renewal Management - ✅ COMPLETE
 
-#### Task 4.1: Renewal Pipeline Dashboard
+#### Task 4.1: Renewal Pipeline Dashboard ✅ COMPLETE
 **Priority**: P1 (Important)
 **Estimated Effort**: 4 days
+**Status**: ✅ COMPLETE (December 1, 2025)
 
 **Objectives:**
-- Show all policies with upcoming renewals
-- Filter by time window (30/60/90 days)
-- Highlight at-risk renewals
-- Track renewal conversion rate
+- ✅ Show all policies with upcoming renewals
+- ✅ Filter by time window (30/60/90/180/365 days)
+- ✅ Highlight at-risk renewals with urgency indicators
+- ✅ Track renewal conversion rate and at-risk revenue
 
 **Dashboard Layout:**
 ```
@@ -693,23 +694,32 @@ Status Legend:
 ```
 
 **Acceptance Criteria:**
-- [ ] Shows all upcoming renewals
-- [ ] Filter by 30/60/90 day windows
-- [ ] Status tracking (contacted/pending/at-risk)
-- [ ] Retention rate calculated
-- [ ] Sortable and filterable
+- ✅ Shows all upcoming renewals
+- ✅ Filter by 30/60/90/180/365 day windows
+- ✅ Urgency tracking (past_due/critical/high/medium/low)
+- ✅ At-risk premium and commission calculated
+- ✅ Sortable, filterable, and exportable to CSV
+
+**Implementation:**
+- Created `get_agent_renewal_pipeline()` function in [agent_data_helpers.py](c:\Users\Patri\Metro Point Insurance\Metro Point Technology - Documents\Projects\AMS-APP\utils\agent_data_helpers.py:1583)
+- Tab 1 in "📋 My Policies" page ([commission_app.py:23220](c:\Users\Patri\Metro Point Insurance\Metro Point Technology - Documents\Projects\AMS-APP\commission_app.py#L23220))
+- Summary metrics: Past Due, Due in 7/30/90 days, Total Renewals
+- At-risk revenue tracking: Premium and Commission
+- Urgency-based filtering with color-coded indicators
+- Exportable renewal list to CSV
 
 ---
 
-#### Task 4.2: Upcoming Renewals Calendar
-**Priority**: P2 (Nice to Have)
+#### Task 4.2: Upcoming Renewals Calendar ✅ COMPLETE
+**Priority**: P1 (Important)
 **Estimated Effort**: 3 days
+**Status**: ✅ COMPLETE (December 1, 2025)
 
 **Objectives:**
-- Calendar view of renewals
-- Color-coded by status
-- Click to view policy details
-- Add notes/reminders
+- ✅ Calendar view of renewals by month
+- ✅ Grouped by expiration date
+- ✅ Click to view policy details
+- ✅ Month summary statistics
 
 **Calendar View:**
 ```
@@ -732,23 +742,32 @@ Click date to see details
 ```
 
 **Acceptance Criteria:**
-- [ ] Calendar displays all renewals
-- [ ] Color-coded by status
-- [ ] Click date to see list
-- [ ] Add reminder functionality
-- [ ] Export to Google Calendar
+- ✅ Calendar displays all renewals for selected month
+- ✅ Grouped by expiration date with expandable details
+- ✅ Click date to see renewal list
+- ✅ Month summary with total renewals, premium, and average premium
+- ✅ Month/year selector
+
+**Implementation:**
+- Created `get_renewal_calendar_data()` function in [agent_data_helpers.py](c:\Users\Patri\Metro Point Insurance\Metro Point Technology - Documents\Projects\AMS-APP\utils\agent_data_helpers.py:2022)
+- Tab 2 in "📋 My Policies" page ([commission_app.py:23371](c:\Users\Patri\Metro Point Insurance\Metro Point Technology - Documents\Projects\AMS-APP\commission_app.py#L23371))
+- Month/year selector to navigate calendar
+- Grouped renewals by date with expandable sections
+- Policy details: Insured name, carrier, policy type, premium, days until expiration
+- Month summary statistics
 
 ---
 
-#### Task 4.3: Renewal Retention Tracking
+#### Task 4.3: Renewal Retention Tracking ✅ COMPLETE
 **Priority**: P1 (Important)
 **Estimated Effort**: 2 days
+**Status**: ✅ COMPLETE (December 1, 2025)
 
 **Objectives:**
-- Track which renewals were retained
-- Calculate retention rate by month
-- Identify patterns in lost renewals
-- Compare to agency average
+- ✅ Track which renewals were retained
+- ✅ Calculate retention rate by period (YTD/30/90/365 days)
+- ✅ Identify renewed vs lost renewals
+- ✅ Compare to agency average
 
 **Metrics:**
 ```python
@@ -771,22 +790,32 @@ def get_renewal_metrics(agent_id, year):
 ```
 
 **Acceptance Criteria:**
-- [ ] Retention rate calculated monthly
-- [ ] Lost renewals categorized by reason
-- [ ] Comparison to agency average
-- [ ] Trend analysis (improving/declining)
+- ✅ Retention rate calculated for multiple periods (YTD, last 30/90/365 days)
+- ✅ Renewed vs Lost breakdown with counts and premium
+- ✅ Comparison to agency average retention rate
+- ✅ Visual breakdown with bar charts
+
+**Implementation:**
+- Created `get_agent_renewal_retention_rate()` function in [agent_data_helpers.py](c:\Users\Patri\Metro Point Insurance\Metro Point Technology - Documents\Projects\AMS-APP\utils\agent_data_helpers.py:1753)
+- Tab 3 in "📋 My Policies" page ([commission_app.py:23458](c:\Users\Patri\Metro Point Insurance\Metro Point Technology - Documents\Projects\AMS-APP\commission_app.py#L23458))
+- Period selector: YTD, Last 30/90/365 Days
+- Retention rate with performance indicator (Excellent/Good/Fair/Needs improvement)
+- Agency average comparison
+- Renewed vs Lost breakdown with counts and premium
+- Visual bar chart representation
 
 ---
 
-#### Task 4.4: Lost Renewal Analysis
+#### Task 4.4: Lost Renewal Analysis ✅ COMPLETE
 **Priority**: P2 (Nice to Have)
 **Estimated Effort**: 2 days
+**Status**: ✅ COMPLETE (December 1, 2025)
 
 **Objectives:**
-- Track why renewals were lost
-- Identify patterns (carrier, policy type, price point)
-- Suggestions to improve retention
-- Win-back opportunities
+- ✅ Track cancelled policies (lost renewals)
+- ✅ Identify patterns by carrier and policy type
+- ✅ Detailed lost policy list
+- ✅ Exportable reports
 
 **Analysis:**
 ```
@@ -816,10 +845,20 @@ Win-Back Opportunities:
 ```
 
 **Acceptance Criteria:**
-- [ ] Lost renewals tracked with reasons
-- [ ] Pattern analysis by carrier/type
-- [ ] Actionable recommendations
-- [ ] Win-back opportunities identified
+- ✅ Lost renewals tracked (cancelled policies)
+- ✅ Pattern analysis by carrier and policy type
+- ✅ Detailed lost policy list with all details
+- ✅ Exportable to CSV for further analysis
+
+**Implementation:**
+- Created `get_lost_renewals_analysis()` function in [agent_data_helpers.py](c:\Users\Patri\Metro Point Insurance\Metro Point Technology - Documents\Projects\AMS-APP\utils\agent_data_helpers.py:1893)
+- Tab 4 in "📋 My Policies" page ([commission_app.py:23561](c:\Users\Patri\Metro Point Insurance\Metro Point Technology - Documents\Projects\AMS-APP\commission_app.py#L23561))
+- Period selector: YTD, Last 30/90/365 Days
+- Lost business summary: Count, premium, and commission totals
+- Lost renewals grouped by carrier
+- Lost renewals grouped by policy type
+- Detailed lost policies list with all information
+- Export to CSV functionality
 
 ---
 

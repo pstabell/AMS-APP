@@ -23186,18 +23186,491 @@ CREATE TABLE IF NOT EXISTS deleted_policies (
             st.info("No commission statements found for the selected filters.")
 
     elif page == "📋 My Policies":
-        # Agent's policies
-        st.title("📋 My Policies")
-        agent_id = st.session_state.get('agent_id')
+        # Agent's policies and renewal management (Sprint 4: Tasks 4.1-4.4)
+        from utils.agent_data_helpers import (
+            get_agent_renewal_pipeline,
+            get_agent_renewal_retention_rate,
+            get_lost_renewals_analysis,
+            get_renewal_calendar_data
+        )
+        from datetime import datetime
+        import calendar
 
-        st.info("🚧 **My Policies** view coming soon!")
-        st.markdown("""
-        ### What You'll See:
-        - All policies you've written
-        - Filter by status, carrier, policy type
-        - Search for specific policies
-        - Renewal tracking
-        """)
+        st.title("📋 My Policies & Renewals")
+
+        agent_id = st.session_state.get('agent_id')
+        agency_id = st.session_state.get('agency_id')
+        agent_name = st.session_state.get('agent_name', 'Agent')
+
+        if not agent_id:
+            st.error("Missing agent information.")
+            st.stop()
+
+        # Create tabs for different renewal views
+        tab1, tab2, tab3, tab4 = st.tabs([
+            "📊 Renewal Pipeline",
+            "📅 Renewal Calendar",
+            "📈 Retention Tracking",
+            "⚠️ Lost Renewals"
+        ])
+
+        # ==========================================
+        # TAB 1: RENEWAL PIPELINE DASHBOARD (Task 4.1)
+        # ==========================================
+        with tab1:
+            st.subheader("Renewal Pipeline Dashboard")
+
+            # Time horizon selector
+            col_time1, col_time2 = st.columns([2, 3])
+            with col_time1:
+                days_filter = st.selectbox(
+                    "Show renewals due in:",
+                    options=[30, 60, 90, 180, 365],
+                    format_func=lambda x: f"Next {x} days",
+                    key="renewal_days_filter"
+                )
+
+            # Get renewal pipeline data
+            pipeline = get_agent_renewal_pipeline(
+                agent_id=agent_id,
+                agency_id=agency_id,
+                days_ahead=days_filter,
+                include_past_due=True
+            )
+
+            # Display summary metrics
+            st.markdown("### 📊 Pipeline Overview")
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                st.metric(
+                    "🔴 Past Due",
+                    pipeline['past_due'],
+                    help="Policies already expired and need immediate attention"
+                )
+
+            with col2:
+                st.metric(
+                    "⚠️ Due in 7 Days",
+                    pipeline['due_7_days'],
+                    help="Critical - expiring this week"
+                )
+
+            with col3:
+                st.metric(
+                    "📅 Due in 30 Days",
+                    pipeline['due_30_days'],
+                    help="High priority - expiring this month"
+                )
+
+            with col4:
+                st.metric(
+                    "📊 Total Renewals",
+                    pipeline['total_renewals'],
+                    help=f"All renewals in next {days_filter} days"
+                )
+
+            # At-risk premium and commission
+            st.markdown("### 💰 At-Risk Revenue")
+            col5, col6 = st.columns(2)
+
+            with col5:
+                st.metric(
+                    "Premium at Risk",
+                    f"${pipeline['total_premium_at_risk']:,.2f}",
+                    help="Total premium from policies needing renewal"
+                )
+
+            with col6:
+                st.metric(
+                    "Commission at Risk",
+                    f"${pipeline['total_commission_at_risk']:,.2f}",
+                    help="Potential commission loss if renewals aren't secured"
+                )
+
+            st.divider()
+
+            # Renewal list with filters
+            st.markdown("### 📋 Renewal List")
+
+            if pipeline['renewals']:
+                # Urgency filter
+                urgency_filter = st.multiselect(
+                    "Filter by urgency:",
+                    options=['past_due', 'critical', 'high', 'medium', 'low'],
+                    default=['past_due', 'critical', 'high'],
+                    format_func=lambda x: {
+                        'past_due': '🔴 Past Due',
+                        'critical': '⚠️ Critical (0-7 days)',
+                        'high': '🟡 High (8-30 days)',
+                        'medium': '🟢 Medium (31-60 days)',
+                        'low': '🔵 Low (60+ days)'
+                    }[x],
+                    key="urgency_filter"
+                )
+
+                # Filter renewals by urgency
+                filtered_renewals = [r for r in pipeline['renewals'] if r['urgency'] in urgency_filter]
+
+                if filtered_renewals:
+                    st.write(f"**Showing {len(filtered_renewals)} of {len(pipeline['renewals'])} renewals**")
+
+                    # Display renewals in a sortable table
+                    import pandas as pd
+                    renewals_df = pd.DataFrame(filtered_renewals)
+
+                    # Format columns
+                    display_df = renewals_df[[
+                        'urgency', 'insured_name', 'policy_number', 'carrier',
+                        'policy_type', 'expiration_date', 'days_until_expiration',
+                        'premium', 'commission'
+                    ]].copy()
+
+                    display_df.columns = [
+                        'Urgency', 'Insured', 'Policy #', 'Carrier',
+                        'Type', 'Expiration', 'Days Until', 'Premium', 'Commission'
+                    ]
+
+                    # Add urgency indicator
+                    urgency_icons = {
+                        'past_due': '🔴',
+                        'critical': '⚠️',
+                        'high': '🟡',
+                        'medium': '🟢',
+                        'low': '🔵'
+                    }
+                    display_df['Urgency'] = display_df['Urgency'].map(urgency_icons)
+
+                    # Format currency
+                    display_df['Premium'] = display_df['Premium'].apply(lambda x: f"${x:,.2f}")
+                    display_df['Commission'] = display_df['Commission'].apply(lambda x: f"${x:,.2f}")
+
+                    # Display table
+                    st.dataframe(
+                        display_df,
+                        use_container_width=True,
+                        hide_index=True
+                    )
+
+                    # Export option
+                    csv = display_df.to_csv(index=False)
+                    st.download_button(
+                        label="📥 Export Renewals to CSV",
+                        data=csv,
+                        file_name=f"renewal_pipeline_{agent_name}_{datetime.now().strftime('%Y%m%d')}.csv",
+                        mime="text/csv"
+                    )
+                else:
+                    st.info("No renewals match the selected urgency filters.")
+            else:
+                st.success(f"🎉 No renewals due in the next {days_filter} days!")
+
+        # ==========================================
+        # TAB 2: RENEWAL CALENDAR (Task 4.2)
+        # ==========================================
+        with tab2:
+            st.subheader("📅 Renewal Calendar")
+
+            # Month/year selector
+            col_cal1, col_cal2 = st.columns(2)
+
+            current_year = datetime.now().year
+            current_month = datetime.now().month
+
+            with col_cal1:
+                selected_month = st.selectbox(
+                    "Month",
+                    options=list(range(1, 13)),
+                    index=current_month - 1,
+                    format_func=lambda x: calendar.month_name[x],
+                    key="calendar_month"
+                )
+
+            with col_cal2:
+                selected_year = st.selectbox(
+                    "Year",
+                    options=list(range(current_year - 1, current_year + 3)),
+                    index=1,  # Current year
+                    key="calendar_year"
+                )
+
+            # Get calendar data
+            calendar_data = get_renewal_calendar_data(
+                agent_id=agent_id,
+                agency_id=agency_id,
+                month=selected_month,
+                year=selected_year
+            )
+
+            if calendar_data:
+                st.write(f"**{len(calendar_data)} renewals in {calendar.month_name[selected_month]} {selected_year}**")
+
+                # Group by date
+                from collections import defaultdict
+                renewals_by_date = defaultdict(list)
+                for renewal in calendar_data:
+                    renewals_by_date[renewal['date']].append(renewal)
+
+                # Display calendar view
+                st.markdown("### 📆 Renewals by Date")
+
+                for date in sorted(renewals_by_date.keys()):
+                    date_obj = datetime.strptime(date, '%Y-%m-%d')
+                    date_display = date_obj.strftime('%A, %B %d, %Y')
+
+                    with st.expander(f"📅 {date_display} ({len(renewals_by_date[date])} renewals)", expanded=False):
+                        for renewal in renewals_by_date[date]:
+                            col_pol1, col_pol2, col_pol3 = st.columns([2, 2, 1])
+
+                            with col_pol1:
+                                st.write(f"**{renewal['insured_name']}**")
+                                st.caption(f"Policy: {renewal['policy_number']}")
+
+                            with col_pol2:
+                                st.write(f"**{renewal['carrier']}**")
+                                st.caption(f"{renewal['policy_type']}")
+
+                            with col_pol3:
+                                st.write(f"**${renewal['premium']:,.0f}**")
+                                st.caption(f"{renewal['days_until']} days")
+
+                            st.divider()
+
+                # Summary statistics
+                st.markdown("### 📊 Month Summary")
+                total_premium = sum(r['premium'] for r in calendar_data)
+                avg_premium = total_premium / len(calendar_data) if calendar_data else 0
+
+                sum_col1, sum_col2, sum_col3 = st.columns(3)
+                with sum_col1:
+                    st.metric("Total Renewals", len(calendar_data))
+                with sum_col2:
+                    st.metric("Total Premium", f"${total_premium:,.2f}")
+                with sum_col3:
+                    st.metric("Avg Premium", f"${avg_premium:,.2f}")
+
+            else:
+                st.info(f"No renewals scheduled for {calendar.month_name[selected_month]} {selected_year}")
+
+        # ==========================================
+        # TAB 3: RETENTION TRACKING (Task 4.3)
+        # ==========================================
+        with tab3:
+            st.subheader("📈 Renewal Retention Tracking")
+
+            # Period selector
+            col_ret1, col_ret2 = st.columns([2, 3])
+            with col_ret1:
+                retention_period = st.selectbox(
+                    "Time Period",
+                    options=['ytd', 'last_30', 'last_90', 'last_365'],
+                    format_func=lambda x: {
+                        'ytd': 'Year to Date',
+                        'last_30': 'Last 30 Days',
+                        'last_90': 'Last 90 Days',
+                        'last_365': 'Last 365 Days'
+                    }[x],
+                    key="retention_period"
+                )
+
+            # Get retention data
+            retention = get_agent_renewal_retention_rate(
+                agent_id=agent_id,
+                agency_id=agency_id,
+                period=retention_period
+            )
+
+            # Display retention rate
+            st.markdown("### 🎯 Retention Performance")
+
+            col_ret_m1, col_ret_m2, col_ret_m3 = st.columns(3)
+
+            with col_ret_m1:
+                # Color code based on retention rate
+                rate = retention['retention_rate']
+                delta_color = "normal"
+                if rate >= 90:
+                    delta_text = "Excellent!"
+                elif rate >= 80:
+                    delta_text = "Good"
+                elif rate >= 70:
+                    delta_text = "Fair"
+                else:
+                    delta_text = "Needs improvement"
+
+                st.metric(
+                    "Retention Rate",
+                    f"{rate}%",
+                    delta=delta_text,
+                    help="Percentage of renewals retained"
+                )
+
+            with col_ret_m2:
+                if retention['agency_average'] is not None:
+                    diff = retention['retention_rate'] - retention['agency_average']
+                    st.metric(
+                        "Agency Average",
+                        f"{retention['agency_average']}%",
+                        delta=f"{diff:+.1f}% vs you",
+                        help="Your agency's average retention rate"
+                    )
+                else:
+                    st.metric("Agency Average", "N/A")
+
+            with col_ret_m3:
+                st.metric(
+                    "Total Opportunities",
+                    retention['total_opportunities'],
+                    help="Total renewal opportunities in this period"
+                )
+
+            st.divider()
+
+            # Renewed vs Lost breakdown
+            st.markdown("### 📊 Renewal Breakdown")
+
+            col_break1, col_break2 = st.columns(2)
+
+            with col_break1:
+                st.markdown("#### ✅ Renewed")
+                st.metric("Count", retention['renewed_count'])
+                st.metric("Premium", f"${retention['renewed_premium']:,.2f}")
+
+            with col_break2:
+                st.markdown("#### ❌ Lost")
+                st.metric("Count", retention['lost_count'])
+                st.metric("Premium", f"${retention['lost_premium']:,.2f}")
+
+            # Visual representation
+            if retention['total_opportunities'] > 0:
+                st.markdown("### 📊 Visual Breakdown")
+
+                # Create a simple bar chart
+                import pandas as pd
+                chart_data = pd.DataFrame({
+                    'Status': ['Renewed', 'Lost'],
+                    'Count': [retention['renewed_count'], retention['lost_count']],
+                    'Premium': [retention['renewed_premium'], retention['lost_premium']]
+                })
+
+                st.bar_chart(chart_data.set_index('Status')['Count'])
+
+        # ==========================================
+        # TAB 4: LOST RENEWALS ANALYSIS (Task 4.4)
+        # ==========================================
+        with tab4:
+            st.subheader("⚠️ Lost Renewal Analysis")
+
+            # Period selector
+            col_lost1, col_lost2 = st.columns([2, 3])
+            with col_lost1:
+                lost_period = st.selectbox(
+                    "Time Period",
+                    options=['ytd', 'last_30', 'last_90', 'last_365'],
+                    format_func=lambda x: {
+                        'ytd': 'Year to Date',
+                        'last_30': 'Last 30 Days',
+                        'last_90': 'Last 90 Days',
+                        'last_365': 'Last 365 Days'
+                    }[x],
+                    key="lost_period"
+                )
+
+            # Get lost renewals data
+            lost_analysis = get_lost_renewals_analysis(
+                agent_id=agent_id,
+                agency_id=agency_id,
+                period=lost_period
+            )
+
+            # Display summary metrics
+            st.markdown("### 💔 Lost Business Summary")
+
+            col_lost_m1, col_lost_m2, col_lost_m3 = st.columns(3)
+
+            with col_lost_m1:
+                st.metric(
+                    "Lost Renewals",
+                    lost_analysis['total_lost'],
+                    help="Number of cancelled policies"
+                )
+
+            with col_lost_m2:
+                st.metric(
+                    "Lost Premium",
+                    f"${lost_analysis['total_lost_premium']:,.2f}",
+                    help="Total premium from cancelled policies"
+                )
+
+            with col_lost_m3:
+                st.metric(
+                    "Lost Commission",
+                    f"${lost_analysis['total_lost_commission']:,.2f}",
+                    help="Total commission from cancelled policies"
+                )
+
+            if lost_analysis['total_lost'] > 0:
+                st.divider()
+
+                # Lost by carrier
+                if lost_analysis['lost_by_carrier']:
+                    st.markdown("### 📊 Lost Renewals by Carrier")
+
+                    import pandas as pd
+                    carrier_df = pd.DataFrame(
+                        list(lost_analysis['lost_by_carrier'].items()),
+                        columns=['Carrier', 'Count']
+                    )
+                    carrier_df = carrier_df.sort_values('Count', ascending=False)
+
+                    st.dataframe(carrier_df, use_container_width=True, hide_index=True)
+
+                # Lost by policy type
+                if lost_analysis['lost_by_type']:
+                    st.markdown("### 📊 Lost Renewals by Policy Type")
+
+                    type_df = pd.DataFrame(
+                        list(lost_analysis['lost_by_type'].items()),
+                        columns=['Policy Type', 'Count']
+                    )
+                    type_df = type_df.sort_values('Count', ascending=False)
+
+                    st.dataframe(type_df, use_container_width=True, hide_index=True)
+
+                st.divider()
+
+                # Detailed lost policies list
+                st.markdown("### 📋 Lost Policies Detail")
+
+                if lost_analysis['lost_policies']:
+                    lost_df = pd.DataFrame(lost_analysis['lost_policies'])
+
+                    display_lost_df = lost_df[[
+                        'insured_name', 'policy_number', 'carrier',
+                        'policy_type', 'effective_date', 'premium', 'commission'
+                    ]].copy()
+
+                    display_lost_df.columns = [
+                        'Insured', 'Policy #', 'Carrier',
+                        'Type', 'Cancelled Date', 'Premium', 'Commission'
+                    ]
+
+                    display_lost_df['Premium'] = display_lost_df['Premium'].apply(lambda x: f"${x:,.2f}")
+                    display_lost_df['Commission'] = display_lost_df['Commission'].apply(lambda x: f"${x:,.2f}")
+
+                    st.dataframe(display_lost_df, use_container_width=True, hide_index=True)
+
+                    # Export option
+                    csv = display_lost_df.to_csv(index=False)
+                    st.download_button(
+                        label="📥 Export Lost Renewals to CSV",
+                        data=csv,
+                        file_name=f"lost_renewals_{agent_name}_{datetime.now().strftime('%Y%m%d')}.csv",
+                        mime="text/csv"
+                    )
+
+            else:
+                st.success("🎉 No lost renewals in this period! Great job retaining your book of business!")
 
     elif page == "🏆 Leaderboard":
         # Agent leaderboard (Task 3.2: Live Leaderboards)

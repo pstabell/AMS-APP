@@ -1574,3 +1574,521 @@ def create_agent_goal(
     except Exception as e:
         print(f"Error creating goal: {e}")
         return True, f"Goal logged (demo mode): {str(e)}"
+
+
+# ==========================================
+# SPRINT 4: RENEWAL MANAGEMENT FUNCTIONS
+# ==========================================
+
+def get_agent_renewal_pipeline(
+    agent_id: str,
+    agency_id: str = None,
+    days_ahead: int = 90,
+    include_past_due: bool = True
+) -> Dict[str, Any]:
+    """
+    Get agent's renewal pipeline with upcoming renewals.
+
+    Args:
+        agent_id: Agent's UUID
+        agency_id: Agency's UUID (optional for filtering)
+        days_ahead: Number of days to look ahead (30, 60, 90, etc.)
+        include_past_due: Whether to include past due renewals
+
+    Returns:
+        {
+            'total_renewals': int,
+            'past_due': int,
+            'due_7_days': int,
+            'due_30_days': int,
+            'due_60_days': int,
+            'due_90_days': int,
+            'total_premium_at_risk': float,
+            'total_commission_at_risk': float,
+            'renewals': List[Dict] - List of renewal policies
+        }
+    """
+    try:
+        from datetime import datetime, timedelta
+
+        # Get policies data
+        url = os.getenv("SUPABASE_URL")
+        key = os.getenv("SUPABASE_ANON_KEY")
+
+        if not url or not key:
+            return _empty_renewal_pipeline()
+
+        supabase = create_client(url, key)
+
+        # Build query - fetch policies for this agent
+        query = supabase.table('policies').select('*').eq('agent_id', agent_id)
+
+        if agency_id:
+            query = query.eq('agency_id', agency_id)
+
+        result = query.execute()
+
+        if not result.data:
+            return _empty_renewal_pipeline()
+
+        # Convert to DataFrame for easier processing
+        df = pd.DataFrame(result.data)
+
+        # Get pending renewals (policies that need renewal)
+        # A policy needs renewal if it's the latest transaction for that policy number
+        # and hasn't been cancelled or replaced
+
+        # Filter for relevant transaction types (exclude STMT, VOID)
+        valid_types = ['NBD', 'RWL', 'EDT', 'CAN', 'REI']
+        df = df[df['Transaction Type'].isin(valid_types)]
+
+        # For each unique Policy Number, get the latest transaction
+        df['Effective Date'] = pd.to_datetime(df['Effective Date'])
+        df_sorted = df.sort_values('Effective Date', ascending=False)
+        latest_policies = df_sorted.drop_duplicates(subset=['Policy Number'], keep='first')
+
+        # Exclude cancelled policies and policies that have been replaced (have Prior Policy Number filled in another policy)
+        latest_policies = latest_policies[latest_policies['Transaction Type'] != 'CAN']
+
+        # Check for replacements - policies with Prior Policy Number pointing to this policy
+        replaced_policy_numbers = set()
+        if 'Prior Policy Number' in df.columns:
+            replaced_policy_numbers = set(df[df['Prior Policy Number'].notna()]['Prior Policy Number'].unique())
+
+        # Filter out replaced policies
+        pending_renewals = latest_policies[~latest_policies['Policy Number'].isin(replaced_policy_numbers)].copy()
+
+        if pending_renewals.empty:
+            return _empty_renewal_pipeline()
+
+        # Calculate expiration date (Effective Date + 365 days for annual policies)
+        # TODO: Handle different policy terms (6-month, monthly, etc.)
+        pending_renewals['Expiration Date'] = pending_renewals['Effective Date'] + pd.Timedelta(days=365)
+
+        # Calculate days until expiration
+        today = pd.Timestamp.now().normalize()
+        pending_renewals['Days Until Expiration'] = (pending_renewals['Expiration Date'] - today).dt.days
+
+        # Filter based on days_ahead parameter
+        if not include_past_due:
+            pending_renewals = pending_renewals[pending_renewals['Days Until Expiration'] >= 0]
+
+        pending_renewals = pending_renewals[pending_renewals['Days Until Expiration'] <= days_ahead]
+
+        # Calculate summary statistics
+        total_renewals = len(pending_renewals)
+        past_due = len(pending_renewals[pending_renewals['Days Until Expiration'] < 0])
+        due_7_days = len(pending_renewals[pending_renewals['Days Until Expiration'].between(0, 7)])
+        due_30_days = len(pending_renewals[pending_renewals['Days Until Expiration'].between(0, 30)])
+        due_60_days = len(pending_renewals[pending_renewals['Days Until Expiration'].between(0, 60)])
+        due_90_days = len(pending_renewals[pending_renewals['Days Until Expiration'].between(0, 90)])
+
+        # Calculate at-risk amounts
+        total_premium = pending_renewals['Premium'].fillna(0).sum() if 'Premium' in pending_renewals.columns else 0
+        total_commission = pending_renewals['Commission Amount'].fillna(0).sum() if 'Commission Amount' in pending_renewals.columns else 0
+
+        # Convert renewals to list of dicts
+        renewals_list = []
+        for _, row in pending_renewals.iterrows():
+            renewals_list.append({
+                'policy_number': row.get('Policy Number', ''),
+                'insured_name': row.get('Insured Name', ''),
+                'carrier': row.get('Carrier', ''),
+                'policy_type': row.get('Policy Type', ''),
+                'effective_date': row['Effective Date'].strftime('%Y-%m-%d'),
+                'expiration_date': row['Expiration Date'].strftime('%Y-%m-%d'),
+                'days_until_expiration': int(row['Days Until Expiration']),
+                'premium': float(row.get('Premium', 0)),
+                'commission': float(row.get('Commission Amount', 0)),
+                'is_past_due': row['Days Until Expiration'] < 0,
+                'urgency': _get_renewal_urgency(row['Days Until Expiration'])
+            })
+
+        return {
+            'total_renewals': total_renewals,
+            'past_due': past_due,
+            'due_7_days': due_7_days,
+            'due_30_days': due_30_days,
+            'due_60_days': due_60_days,
+            'due_90_days': due_90_days,
+            'total_premium_at_risk': float(total_premium),
+            'total_commission_at_risk': float(total_commission),
+            'renewals': renewals_list
+        }
+
+    except Exception as e:
+        print(f"Error getting renewal pipeline: {e}")
+        return _empty_renewal_pipeline()
+
+
+def _empty_renewal_pipeline() -> Dict[str, Any]:
+    """Return empty renewal pipeline structure."""
+    return {
+        'total_renewals': 0,
+        'past_due': 0,
+        'due_7_days': 0,
+        'due_30_days': 0,
+        'due_60_days': 0,
+        'due_90_days': 0,
+        'total_premium_at_risk': 0.0,
+        'total_commission_at_risk': 0.0,
+        'renewals': []
+    }
+
+
+def _get_renewal_urgency(days_until_expiration: int) -> str:
+    """Determine urgency level for a renewal."""
+    if days_until_expiration < 0:
+        return 'past_due'
+    elif days_until_expiration <= 7:
+        return 'critical'
+    elif days_until_expiration <= 30:
+        return 'high'
+    elif days_until_expiration <= 60:
+        return 'medium'
+    else:
+        return 'low'
+
+
+def get_agent_renewal_retention_rate(
+    agent_id: str,
+    agency_id: str = None,
+    year: int = None,
+    period: str = 'ytd'
+) -> Dict[str, Any]:
+    """
+    Calculate agent's renewal retention rate.
+
+    Args:
+        agent_id: Agent's UUID
+        agency_id: Agency's UUID (optional)
+        year: Year to analyze (default: current year)
+        period: 'ytd', 'last_30', 'last_90', 'last_365'
+
+    Returns:
+        {
+            'retention_rate': float (percentage),
+            'renewed_count': int,
+            'lost_count': int,
+            'total_opportunities': int,
+            'renewed_premium': float,
+            'lost_premium': float,
+            'agency_average': float (if agency_id provided)
+        }
+    """
+    try:
+        from datetime import datetime, timedelta
+
+        url = os.getenv("SUPABASE_URL")
+        key = os.getenv("SUPABASE_ANON_KEY")
+
+        if not url or not key:
+            return _empty_retention_stats()
+
+        supabase = create_client(url, key)
+
+        # Determine date range
+        if year is None:
+            year = datetime.now().year
+
+        if period == 'ytd':
+            start_date = f"{year}-01-01"
+            end_date = datetime.now().strftime('%Y-%m-%d')
+        elif period == 'last_30':
+            end_date = datetime.now()
+            start_date = (end_date - timedelta(days=30)).strftime('%Y-%m-%d')
+            end_date = end_date.strftime('%Y-%m-%d')
+        elif period == 'last_90':
+            end_date = datetime.now()
+            start_date = (end_date - timedelta(days=90)).strftime('%Y-%m-%d')
+            end_date = end_date.strftime('%Y-%m-%d')
+        elif period == 'last_365':
+            end_date = datetime.now()
+            start_date = (end_date - timedelta(days=365)).strftime('%Y-%m-%d')
+            end_date = end_date.strftime('%Y-%m-%d')
+        else:
+            start_date = f"{year}-01-01"
+            end_date = f"{year}-12-31"
+
+        # Get all policies for this agent
+        query = supabase.table('policies').select('*').eq('agent_id', agent_id)
+
+        if agency_id:
+            query = query.eq('agency_id', agency_id)
+
+        result = query.execute()
+
+        if not result.data:
+            return _empty_retention_stats()
+
+        df = pd.DataFrame(result.data)
+        df['Effective Date'] = pd.to_datetime(df['Effective Date'])
+
+        # Filter for date range
+        df = df[(df['Effective Date'] >= start_date) & (df['Effective Date'] <= end_date)]
+
+        # Count RWL transactions (renewals)
+        renewed = df[df['Transaction Type'] == 'RWL']
+        renewed_count = len(renewed)
+        renewed_premium = renewed['Premium'].fillna(0).sum() if not renewed.empty else 0
+
+        # Estimate lost renewals (this is approximate - requires more sophisticated tracking)
+        # For now, we'll look at policies that expired in this period but weren't renewed
+        # This would require tracking expiration dates and checking for missing renewals
+
+        # Simple approach: Assume cancelled policies represent lost renewals
+        lost = df[df['Transaction Type'] == 'CAN']
+        lost_count = len(lost)
+        lost_premium = lost['Premium'].fillna(0).sum() if not lost.empty else 0
+
+        total_opportunities = renewed_count + lost_count
+
+        retention_rate = (renewed_count / total_opportunities * 100) if total_opportunities > 0 else 0
+
+        # Calculate agency average if agency_id provided
+        agency_average = None
+        if agency_id:
+            agency_query = supabase.table('policies').select('*').eq('agency_id', agency_id)
+            agency_result = agency_query.execute()
+
+            if agency_result.data:
+                agency_df = pd.DataFrame(agency_result.data)
+                agency_df['Effective Date'] = pd.to_datetime(agency_df['Effective Date'])
+                agency_df = agency_df[(agency_df['Effective Date'] >= start_date) & (agency_df['Effective Date'] <= end_date)]
+
+                agency_renewed = len(agency_df[agency_df['Transaction Type'] == 'RWL'])
+                agency_lost = len(agency_df[agency_df['Transaction Type'] == 'CAN'])
+                agency_total = agency_renewed + agency_lost
+
+                agency_average = (agency_renewed / agency_total * 100) if agency_total > 0 else 0
+
+        return {
+            'retention_rate': round(retention_rate, 2),
+            'renewed_count': renewed_count,
+            'lost_count': lost_count,
+            'total_opportunities': total_opportunities,
+            'renewed_premium': float(renewed_premium),
+            'lost_premium': float(lost_premium),
+            'agency_average': round(agency_average, 2) if agency_average is not None else None
+        }
+
+    except Exception as e:
+        print(f"Error calculating retention rate: {e}")
+        return _empty_retention_stats()
+
+
+def _empty_retention_stats() -> Dict[str, Any]:
+    """Return empty retention statistics."""
+    return {
+        'retention_rate': 0.0,
+        'renewed_count': 0,
+        'lost_count': 0,
+        'total_opportunities': 0,
+        'renewed_premium': 0.0,
+        'lost_premium': 0.0,
+        'agency_average': None
+    }
+
+
+def get_lost_renewals_analysis(
+    agent_id: str,
+    agency_id: str = None,
+    year: int = None,
+    period: str = 'ytd'
+) -> Dict[str, Any]:
+    """
+    Analyze lost renewals for an agent.
+
+    Args:
+        agent_id: Agent's UUID
+        agency_id: Agency's UUID (optional)
+        year: Year to analyze (default: current year)
+        period: 'ytd', 'last_30', 'last_90', 'last_365'
+
+    Returns:
+        {
+            'total_lost': int,
+            'total_lost_premium': float,
+            'total_lost_commission': float,
+            'lost_by_carrier': Dict[str, int],
+            'lost_by_type': Dict[str, int],
+            'lost_policies': List[Dict]
+        }
+    """
+    try:
+        from datetime import datetime, timedelta
+
+        url = os.getenv("SUPABASE_URL")
+        key = os.getenv("SUPABASE_ANON_KEY")
+
+        if not url or not key:
+            return _empty_lost_renewals()
+
+        supabase = create_client(url, key)
+
+        # Determine date range
+        if year is None:
+            year = datetime.now().year
+
+        if period == 'ytd':
+            start_date = f"{year}-01-01"
+            end_date = datetime.now().strftime('%Y-%m-%d')
+        elif period == 'last_30':
+            end_date = datetime.now()
+            start_date = (end_date - timedelta(days=30)).strftime('%Y-%m-%d')
+            end_date = end_date.strftime('%Y-%m-%d')
+        elif period == 'last_90':
+            end_date = datetime.now()
+            start_date = (end_date - timedelta(days=90)).strftime('%Y-%m-%d')
+            end_date = end_date.strftime('%Y-%m-%d')
+        elif period == 'last_365':
+            end_date = datetime.now()
+            start_date = (end_date - timedelta(days=365)).strftime('%Y-%m-%d')
+            end_date = end_date.strftime('%Y-%m-%d')
+        else:
+            start_date = f"{year}-01-01"
+            end_date = f"{year}-12-31"
+
+        # Get cancelled policies for this agent
+        query = supabase.table('policies').select('*').eq('agent_id', agent_id).eq('Transaction Type', 'CAN')
+
+        if agency_id:
+            query = query.eq('agency_id', agency_id)
+
+        result = query.execute()
+
+        if not result.data:
+            return _empty_lost_renewals()
+
+        df = pd.DataFrame(result.data)
+        df['Effective Date'] = pd.to_datetime(df['Effective Date'])
+
+        # Filter for date range
+        df = df[(df['Effective Date'] >= start_date) & (df['Effective Date'] <= end_date)]
+
+        if df.empty:
+            return _empty_lost_renewals()
+
+        # Calculate totals
+        total_lost = len(df)
+        total_lost_premium = df['Premium'].fillna(0).sum()
+        total_lost_commission = df['Commission Amount'].fillna(0).sum()
+
+        # Group by carrier
+        lost_by_carrier = df.groupby('Carrier').size().to_dict() if 'Carrier' in df.columns else {}
+
+        # Group by policy type
+        lost_by_type = df.groupby('Policy Type').size().to_dict() if 'Policy Type' in df.columns else {}
+
+        # Convert to list of dicts
+        lost_policies = []
+        for _, row in df.iterrows():
+            lost_policies.append({
+                'policy_number': row.get('Policy Number', ''),
+                'insured_name': row.get('Insured Name', ''),
+                'carrier': row.get('Carrier', ''),
+                'policy_type': row.get('Policy Type', ''),
+                'effective_date': row['Effective Date'].strftime('%Y-%m-%d'),
+                'premium': float(row.get('Premium', 0)),
+                'commission': float(row.get('Commission Amount', 0))
+            })
+
+        return {
+            'total_lost': total_lost,
+            'total_lost_premium': float(total_lost_premium),
+            'total_lost_commission': float(total_lost_commission),
+            'lost_by_carrier': lost_by_carrier,
+            'lost_by_type': lost_by_type,
+            'lost_policies': lost_policies
+        }
+
+    except Exception as e:
+        print(f"Error analyzing lost renewals: {e}")
+        return _empty_lost_renewals()
+
+
+def _empty_lost_renewals() -> Dict[str, Any]:
+    """Return empty lost renewals structure."""
+    return {
+        'total_lost': 0,
+        'total_lost_premium': 0.0,
+        'total_lost_commission': 0.0,
+        'lost_by_carrier': {},
+        'lost_by_type': {},
+        'lost_policies': []
+    }
+
+
+def get_renewal_calendar_data(
+    agent_id: str,
+    agency_id: str = None,
+    month: int = None,
+    year: int = None
+) -> List[Dict[str, Any]]:
+    """
+    Get renewal calendar data for a specific month.
+
+    Args:
+        agent_id: Agent's UUID
+        agency_id: Agency's UUID (optional)
+        month: Month (1-12, default: current month)
+        year: Year (default: current year)
+
+    Returns:
+        List of renewals with dates for calendar display:
+        [
+            {
+                'date': 'YYYY-MM-DD',
+                'policy_number': str,
+                'insured_name': str,
+                'carrier': str,
+                'premium': float,
+                'days_until': int
+            }
+        ]
+    """
+    try:
+        from datetime import datetime
+        from calendar import monthrange
+
+        if month is None:
+            month = datetime.now().month
+        if year is None:
+            year = datetime.now().year
+
+        # Get first and last day of the month
+        _, last_day = monthrange(year, month)
+        start_date = f"{year}-{month:02d}-01"
+        end_date = f"{year}-{month:02d}-{last_day}"
+
+        # Get renewal pipeline for the month
+        pipeline = get_agent_renewal_pipeline(
+            agent_id=agent_id,
+            agency_id=agency_id,
+            days_ahead=365,  # Get all renewals
+            include_past_due=False
+        )
+
+        # Filter renewals for this month
+        calendar_data = []
+        for renewal in pipeline['renewals']:
+            exp_date = renewal['expiration_date']
+            if start_date <= exp_date <= end_date:
+                calendar_data.append({
+                    'date': exp_date,
+                    'policy_number': renewal['policy_number'],
+                    'insured_name': renewal['insured_name'],
+                    'carrier': renewal['carrier'],
+                    'policy_type': renewal['policy_type'],
+                    'premium': renewal['premium'],
+                    'days_until': renewal['days_until_expiration']
+                })
+
+        # Sort by date
+        calendar_data.sort(key=lambda x: x['date'])
+
+        return calendar_data
+
+    except Exception as e:
+        print(f"Error getting calendar data: {e}")
+        return []
