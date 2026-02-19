@@ -265,7 +265,7 @@ def show_personal_login():
         <div style="text-align: center; margin-top: 20px; color: #888; font-size: 0.9em;">
             <a href="?page=terms">Terms of Service</a> | <a href="?page=privacy">Privacy Policy</a><br>
             <small>&copy; 2025 Metro Technology Solutions LLC. All rights reserved.</small><br>
-            <small>Metro Technology Solutions 27s trademarks are property of Metro Technology Solutions LLC.</small>
+            <small>Metro Technology Solutions27s trademarks are property of Metro Technology Solutions LLC.</small>
         </div>
         """, unsafe_allow_html=True)
 
