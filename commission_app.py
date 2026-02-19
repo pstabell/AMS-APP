@@ -5,8 +5,8 @@ import json
 
 # Set page config first (required to be first Streamlit command)
 st.set_page_config(
-    page_title="Commission Tracker",
-    page_icon="💰",
+    page_title="AMS Dash App",
+    page_icon="💼",
     layout="wide",
     initial_sidebar_state="collapsed"  # Start collapsed on mobile
 )
@@ -202,42 +202,77 @@ if len(st.session_state.rerun_history) > 10:
 
 def show_personal_login():
     """Show the original simple password login for personal use."""
-    st.title("🔐 Sales Commission App - Login")
+
+    # Use tabs for Login and Start Free Trial
+    tab1, tab2 = st.tabs(["Login", "Start Free Trial"])
     
-    # Use a form to allow password managers to work
-    with st.form("login_form"):
-        password = st.text_input(
-            "Password", 
-            type="password",
-            key="password_input",
-            help="Contact administrator for password",
-            autocomplete="current-password"  # Help password managers
-        )
+    with tab1:
+        # Centered logo and title
+        col1, col2, col3 = st.columns([1, 3, 1])
+        with col2:
+            try:
+                logo_path = "Logo/ams_logo.png"  # Use actual AMS logo file
+                if os.path.exists(logo_path):
+                    st.image(logo_path, width=200, use_column_width=False)
+            except Exception:
+                pass
         
-        submit = st.form_submit_button("Login", type="primary", use_container_width=True)
-        
-        if submit:
-            correct_password = os.getenv("APP_PASSWORD", "CommissionApp2025!")
+        st.markdown("""<h2 style='text-align:center;'>🔐 AMS Dash App - Login</h2>""", unsafe_allow_html=True)
+
+        # Use a form to allow password managers to work
+        with st.form("login_form"):
+            # Password input with show/hide toggle
+            col_pass, col_toggle = st.columns([4, 1])
+            with col_pass:
+                password = st.text_input(
+                    "Password", 
+                    type="password",
+                    key="password_input",
+                    help="Contact administrator for password",
+                    autocomplete="current-password"  # Help password managers
+                )
+            with col_toggle:
+                # Show/hide password checkbox
+                show_password = st.checkbox("441", key="show_password_checkbox")
             
-            if password == correct_password:
-                st.session_state["password_correct"] = True
-                st.rerun()
+            # Change input type dynamically based on toggle
+            if show_password:
+                st.session_state["password_input"] = st.session_state.get("password_input", "")
+                st.text_input("Password", value=st.session_state["password_input"], type="default", key="password_input")
+                # Re-render form submit button
+                submit = st.form_submit_button("Login", type="primary", use_container_width=True)
             else:
-                st.session_state["login_error"] = True
-                st.rerun()
-    
-    if st.session_state.get("login_error", False):
-        st.error("😕 Password incorrect. Please try again.")
-        del st.session_state["login_error"]
-    
-    st.info("This application contains sensitive commission data. Authentication is required.")
-    
-    # Add legal links
-    st.markdown("""
-    <div style="text-align: center; margin-top: 20px; color: #888; font-size: 0.9em;">
-        <a href="?page=terms">Terms of Service</a> | <a href="?page=privacy">Privacy Policy</a>
-    </div>
-    """, unsafe_allow_html=True)
+                submit = st.form_submit_button("Login", type="primary", use_container_width=True)
+            
+            if submit:
+                correct_password = os.getenv("APP_PASSWORD", "AMSApp2025!")
+                
+                if password == correct_password:
+                    st.session_state["password_correct"] = True
+                    st.rerun()
+                else:
+                    st.session_state["login_error"] = True
+                    st.rerun()
+        
+        if st.session_state.get("login_error", False):
+            st.error("😕 Password incorrect. Please try again.")
+            del st.session_state["login_error"]
+        
+        st.info("This application contains sensitive commission data. Authentication is required.")
+        
+        # Add legal footer links
+        st.markdown("""
+        <div style="text-align: center; margin-top: 20px; color: #888; font-size: 0.9em;">
+            <a href="?page=terms">Terms of Service</a> | <a href="?page=privacy">Privacy Policy</a><br>
+            <small>&copy; 2025 Metro Technology Solutions LLC. All rights reserved.</small><br>
+            <small>Metro Technology Solutions 27s trademarks are property of Metro Technology Solutions LLC.</small>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with tab2:
+        st.write("### Start your free trial")
+        st.write("Please contact sales or admin to start a free trial.")
+
 
 def show_production_login():
     """Show the multi-user login system for SaaS production."""
@@ -248,27 +283,40 @@ def show_production_login():
     except ImportError as e:
         st.error(f"Import error: {e}")
         # Fallback to basic login
-        # Display logo inline with title - properly centered
-        col1, col2, col3 = st.columns([1.2, 8, 2])  # Even closer
-        with col1:
-            try:
-                logo_path = "Logo/3pMGFb-LogoMakr (no background) COPY.png"
-                if os.path.exists(logo_path):
-                    st.image(logo_path, width=120)  # Triple the size
-            except Exception:
-                st.write("🔐")
+        # Use tabs for Login and Start Free Trial
+        tab1, tab2 = st.tabs(["Login", "Start Free Trial"])
         
-        with col2:
-            # Add more vertical spacing to center-align with logo
-            st.write("")  # Empty line for spacing
-            st.write("")  # Another empty line to bring text down more
-            st.markdown("# Agent Commission Tracker - Login")
-        password = st.text_input("Password", type="password")
-        if password == os.getenv("PRODUCTION_PASSWORD", "SaaSDemo2025!"):
-            st.session_state["password_correct"] = True
-            st.rerun()
-        elif password:
-            st.error("Invalid password")
+        with tab1:
+            # Centered logo and title
+            col1, col2, col3 = st.columns([1, 3, 1])
+            with col2:
+                try:
+                    logo_path = "Logo/ams_logo.png"  # Use actual AMS logo file
+                    if os.path.exists(logo_path):
+                        st.image(logo_path, width=200, use_column_width=False)
+                except Exception:
+                    pass
+            
+            st.markdown("""<h2 style='text-align:center;'>🔐 AMS Dash App - Login</h2>""", unsafe_allow_html=True)
+
+            # Login form
+            password = st.text_input("Password", type="password")
+
+            # Show/hide toggle for password
+            show_password = st.checkbox("Show Password", key="show_password_checkbox")
+            if show_password:
+                password = st.text_input("Password", type="default", value=password)
+
+            if password == os.getenv("PRODUCTION_PASSWORD", "AMSApp2025!"):
+                st.session_state["password_correct"] = True
+                st.rerun()
+            elif password:
+                st.error("Invalid password")
+        
+        with tab2:
+            st.write("### Start your free trial")
+            st.write("Please contact sales or admin to start a free trial.")
+
 
 def check_password():
     """Returns True if the user had the correct password."""
