@@ -1,8 +1,133 @@
 # Agency Platform Master Plan
-**Created**: January 27, 2025  
-**Last Updated**: January 27, 2025  
-**Status**: Strategic Planning - Simplified Approach  
-**Version**: 1.7
+**Created**: January 27, 2025
+**Last Updated**: November 29, 2025
+**Status**: Active Development - Admin-First Strategy
+**Version**: 2.0
+
+## ⚠️ CRITICAL STRATEGY UPDATE (November 29, 2025)
+
+### The Two-Branch Strategy
+
+**MAIN BRANCH** = Individual Agent Commission Tracker (Production-Ready)
+- Solo agents tracking their own commissions
+- Agent reconciles payments from their agency
+- All features perfected and production-ready
+- **PROTECTED - Do not merge until agency-platform is feature-complete**
+
+**AGENCY-PLATFORM BRANCH** = Agency Admin/Owner Control Panel (In Development)
+- Agency owners/admins manage their entire team
+- Reconcile carrier statements across all agents
+- View agency-wide dashboards and metrics
+- Team management and role-based access
+- **Separate development - No impact on production**
+
+### Why This Approach?
+
+1. **Zero Risk to Production**: Main branch stays untouched and perfect
+2. **Build Admin View First**: Complete the agency owner experience before tackling agent views
+3. **Natural Testing Ground**: Develop and test independently
+4. **Delayed Integration**: Don't merge until agency-platform is rock-solid
+5. **Clear Separation of Concerns**: Main = Individual Users, Agency-Platform = Agency Admins
+
+### What Agency-Platform IS:
+
+✅ Admin control panel for agency owners
+✅ Multi-agent dashboards and rankings
+✅ Agency-level reconciliation (carrier → agency)
+✅ Team management and permissions
+✅ Integration catalog for agencies
+
+### What Agency-Platform is NOT (yet):
+
+❌ Individual agent login experience
+❌ Agent-only views (that comes later)
+❌ A replacement for the main branch
+❌ Ready for merge
+
+### Development Priority:
+
+**Phase 1 (Current)**: Build out agency-platform branch as admin-only
+- Complete reconciliation for agency operations
+- Team management UI
+- Agency-wide reporting
+- Real data integration (replace demo mode)
+
+**Phase 2 (Future)**: Build agent experience
+- Individual agent logins
+- Agent-only dashboard views
+- Live commission visibility for agents
+
+**Phase 3 (Much Later)**: Consider merge
+- Only when both branches are feature-complete
+- Comprehensive testing required
+- No rush - keep separate as long as needed
+
+### 🏠 The Two-Floor House Analogy (Merge Strategy)
+
+**Think of the merge like adding a second floor to a house:**
+
+**Ground Floor (Solo Agents)** - Main Branch:
+- ✅ Perfect reconciliation already working
+- ✅ All features untouched and protected
+- ✅ Zero changes to workflow
+- ✅ Same UI, same experience
+
+**Second Floor (Agency Owners)** - Agency Platform:
+- ✅ New features built on top
+- ✅ Separate entrance (routing logic)
+- ✅ Optional columns (agent_id, agency_id = NULL for solo agents)
+- ✅ Doesn't interfere with ground floor
+
+**Elevator/Stairs (Smart Routing)**:
+```python
+if is_agency_owner:
+    # Take elevator to Floor 2
+    show_agency_reconciliation()
+else:
+    # Stay on Floor 1 (existing code, untouched)
+    show_solo_reconciliation()
+```
+
+### 🛡️ Solo Agent Protection Guarantees
+
+**When we merge, solo agents will experience:**
+1. ✅ **Same reconciliation page** - No UI changes
+2. ✅ **Same workflow** - Upload → Map → Match → Import (unchanged)
+3. ✅ **Same performance** - No slowdown
+4. ✅ **Same matching logic** - Fuzzy matching untouched
+5. ✅ **Same -STMT- creation** - Transaction ID format unchanged
+
+**How we protect them:**
+- **Optional columns**: `agent_id` and `agency_id` are NULL for solo agents
+- **Separate code paths**: Solo agent code never touched
+- **OR logic in RLS**: `user_id = auth.uid() OR (agency logic)`
+- **Route before execution**: Check account type, send to correct page
+- **Backward compatibility**: Existing data works with new schema
+
+### ⚠️ Disruption Detection System
+
+**I will alert you if ANY agency-platform feature could disrupt solo agents:**
+
+❌ **Will NOT allow**:
+- Changing core reconciliation matching logic
+- Modifying -STMT- entry creation format
+- Altering RLS policies in a way that blocks solo agents
+- Making agent_id/agency_id required (must stay optional)
+- Changing transaction ID generation for solo agents
+
+✅ **Safe to add**:
+- New columns (if optional/nullable)
+- New functions (if agency-only)
+- New pages (if routed separately)
+- New queries (if filtered by account type)
+
+**Promise**: Before any code that could affect solo agents, I will:
+1. 🚨 Warn you explicitly: "⚠️ This may impact solo agents"
+2. 📋 Explain the risk
+3. 🛡️ Propose mitigation strategy
+4. ✅ Wait for your approval
+
+---
 
 ## Executive Summary
 

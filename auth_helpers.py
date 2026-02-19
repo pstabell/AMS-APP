@@ -203,14 +203,19 @@ def show_production_login_with_auth():
                 st.query_params.clear()  # Clear the ?subscribe=true parameter
                 st.rerun()
         else:
-            # Normal tabs view - removed Register tab for clarity
-            tab1, tab2 = st.tabs(["Login", "Start Free Trial"])
-            
+            # Normal tabs view - Added Agency Signup tab
+            tab1, tab2, tab3 = st.tabs(["Login", "Start Free Trial", "Agency Signup"])
+
             with tab1:
                 show_login_form()
-            
+
             with tab2:
                 show_subscribe_tab()
+
+            with tab3:
+                # Import agency auth helpers
+                from agency_auth_helpers import show_agency_signup_form
+                show_agency_signup_form()
         
         # Add compact footer with legal links
         st.markdown("""
