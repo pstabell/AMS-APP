@@ -180,7 +180,8 @@ export async function GET(request: NextRequest) {
     // Process raw data into transactions with commission calculation
     const allTransactions: PRLTransaction[] = [];
 
-    for (const row of (data || []) as unknown as Record<string, unknown>[]) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const row of (data || []) as any[]) {
       const premium = addNumber(row.premium_sold);
       const paid = addNumber(row.agent_paid_amount);
       
