@@ -276,8 +276,16 @@ def show_login_form():
                                             st.success("Login successful!")
                                             st.rerun()
                                         else:
-                                            st.error("No active subscription found. Please subscribe to continue.")
-                                            st.info("Your subscription status: " + user.get('subscription_status', 'none'))
+                                            sub_status = user.get('subscription_status', 'none')
+                                            if sub_status == 'past_due':
+                                                st.error("⚠️ Your payment is past due. Your account has been suspended.")
+                                                st.info("Please check your email for a payment failure notice from Stripe and update your payment method, or contact support to restore access.")
+                                            elif sub_status == 'cancelled':
+                                                st.warning("Your subscription has been cancelled.")
+                                                st.info("To regain access, start a new subscription using the **'Start Free Trial'** tab above.")
+                                            else:
+                                                st.error("No active subscription found. Please subscribe to continue.")
+                                                st.info(f"Account status: **{sub_status}** — Use the 'Start Free Trial' tab above to subscribe.")
                                     else:
                                         st.error("Incorrect password. Please try again.")
                                 else:
@@ -430,7 +438,7 @@ def show_subscribe_tab():
                                     'terms_version': '2024-12-06',
                                     'privacy_version': '2024-12-06',
                                 },
-                                # Remove payment_method_collection - default behavior requires payment method
+                                payment_method_collection='if_required',  # Allows 100% off promo codes to complete without entering a card
                                 success_url=os.getenv("RENDER_APP_URL", "https://commission-tracker-app.onrender.com") + "/?session_id={CHECKOUT_SESSION_ID}",
                                 cancel_url=os.getenv("RENDER_APP_URL", "https://commission-tracker-app.onrender.com"),
                                 allow_promotion_codes=True,  # Enable coupon code field in checkout
