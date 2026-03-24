@@ -1,0 +1,493 @@
+@import "tailwindcss";
+
+/* Custom scrollbar styling for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--background);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-color-strong);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-primary);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color-strong) var(--background);
+}
+
+:root {
+  /* ═══════════════════════════════════════════════════════════════
+     ACT Premium Dark Theme - Inspired by Linear, Stripe, Vercel
+     ═══════════════════════════════════════════════════════════════ */
+  
+  /* Core Backgrounds - Deep navy with subtle warmth */
+  --background: #0f1419;           /* Main background - near black */
+  --background-secondary: #1a1f2e; /* Cards, panels - subtle navy */
+  --background-tertiary: #242938;  /* Elevated surfaces */
+  --background-elevated: #2d3344;  /* Modals, dropdowns */
+  
+  /* Text Colors - High contrast for readability */
+  --foreground: #f0f2f5;           /* Primary text - off-white */
+  --foreground-muted: #9ca3af;     /* Secondary text */
+  --foreground-subtle: #6b7280;    /* Tertiary/disabled text */
+  --foreground-inverse: #0f1419;   /* Text on light backgrounds */
+  
+  /* ═══════════════════════════════════════════════════════════════
+     Floor-Specific Accent Colors
+     ═══════════════════════════════════════════════════════════════ */
+  
+  /* Floor 1 (Agent View) - Teal/Cyan - Personal, focused */
+  --floor1-primary: #14b8a6;       /* Teal-500 */
+  --floor1-primary-hover: #2dd4bf; /* Teal-400 */
+  --floor1-primary-muted: rgba(20, 184, 166, 0.15);
+  --floor1-gradient-from: #0d9488; /* Teal-600 */
+  --floor1-gradient-to: #14b8a6;   /* Teal-500 */
+  
+  /* Floor 2 (Agency View) - Purple/Violet - Administrative, broader */
+  --floor2-primary: #8b5cf6;       /* Violet-500 */
+  --floor2-primary-hover: #a78bfa; /* Violet-400 */
+  --floor2-primary-muted: rgba(139, 92, 246, 0.15);
+  --floor2-gradient-from: #7c3aed; /* Violet-600 */
+  --floor2-gradient-to: #8b5cf6;   /* Violet-500 */
+  
+  /* Default accent (inherits from floor) */
+  --accent-primary: var(--floor1-primary);
+  --accent-primary-hover: var(--floor1-primary-hover);
+  --accent-primary-muted: var(--floor1-primary-muted);
+  --accent-gradient-from: var(--floor1-gradient-from);
+  --accent-gradient-to: var(--floor1-gradient-to);
+  
+  /* ═══════════════════════════════════════════════════════════════
+     Financial/Commission Colors - Gold/Amber (Universal)
+     ═══════════════════════════════════════════════════════════════ */
+  --gold-primary: #f59e0b;         /* Amber-500 - Money/Commission */
+  --gold-light: #fbbf24;           /* Amber-400 */
+  --gold-dark: #d97706;            /* Amber-600 */
+  --gold-muted: rgba(245, 158, 11, 0.15);
+  
+  /* ═══════════════════════════════════════════════════════════════
+     Semantic Colors
+     ═══════════════════════════════════════════════════════════════ */
+  --success: #10b981;              /* Emerald-500 */
+  --success-muted: rgba(16, 185, 129, 0.15);
+  --warning: #f59e0b;              /* Amber-500 */
+  --warning-muted: rgba(245, 158, 11, 0.15);
+  --error: #ef4444;                /* Red-500 */
+  --error-muted: rgba(239, 68, 68, 0.15);
+  --info: #3b82f6;                 /* Blue-500 */
+  --info-muted: rgba(59, 130, 246, 0.15);
+  
+  /* ═══════════════════════════════════════════════════════════════
+     Borders & Surfaces
+     ═══════════════════════════════════════════════════════════════ */
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-color-strong: rgba(255, 255, 255, 0.15);
+  --border-color-accent: rgba(20, 184, 166, 0.3);
+  
+  /* Shadows - Subtle depth */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 12px 40px rgba(0, 0, 0, 0.6);
+  --shadow-glow: 0 0 20px rgba(20, 184, 166, 0.3);
+  
+  /* Legacy compatibility */
+  --shadow-soft: rgba(0, 0, 0, 0.4);
+  --shadow-medium: rgba(0, 0, 0, 0.6);
+  --highlight-amber: var(--gold-primary);
+  --success-green: var(--success);
+  --warning-orange: var(--warning);
+  --error-red: var(--error);
+  --accent-secondary: var(--gold-primary);
+  --accent-secondary-hover: var(--gold-light);
+  --accent-teal: var(--floor1-primary);
+  --accent-blue: var(--info);
+  
+  /* Interactive states */
+  --hover-bg: rgba(255, 255, 255, 0.05);
+  --active-bg: rgba(255, 255, 255, 0.1);
+  
+  /* Border radius system */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+  --border-radius: var(--radius-md);
+  --border-radius-large: var(--radius-lg);
+}
+
+/* Floor 2 overrides - Applied via data attribute */
+[data-floor="2"] {
+  --accent-primary: var(--floor2-primary);
+  --accent-primary-hover: var(--floor2-primary-hover);
+  --accent-primary-muted: var(--floor2-primary-muted);
+  --accent-gradient-from: var(--floor2-gradient-from);
+  --accent-gradient-to: var(--floor2-gradient-to);
+  --border-color-accent: rgba(139, 92, 246, 0.3);
+  --shadow-glow: 0 0 20px rgba(139, 92, 246, 0.3);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* Dark-first: :root IS the dark theme. No prefers-color-scheme override needed. */
+
+html, body {
+  background: var(--background) !important;
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), 'Inter', 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Form Elements - Premium Dark Theme
+   ═══════════════════════════════════════════════════════════════ */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="date"],
+input[type="number"],
+input[type="search"],
+select,
+textarea {
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color-strong);
+  border-radius: var(--radius-md);
+  color: var(--foreground);
+  padding: 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--foreground-subtle);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--accent-primary-muted);
+  outline: none;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background: var(--background-tertiary);
+  color: var(--foreground-subtle);
+  cursor: not-allowed;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Buttons - Consistent Premium Styling
+   ═══════════════════════════════════════════════════════════════ */
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent-gradient-from), var(--accent-gradient-to));
+  border: none;
+  border-radius: var(--radius-md);
+  color: white;
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.625rem 1.25rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md), var(--shadow-glow);
+  filter: brightness(1.1);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-xs);
+}
+
+.btn-secondary {
+  background: transparent;
+  border: 1px solid var(--border-color-strong);
+  border-radius: var(--radius-md);
+  color: var(--foreground);
+  font-weight: 500;
+  font-size: 0.875rem;
+  padding: 0.625rem 1.25rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background: var(--hover-bg);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.btn-gold {
+  background: linear-gradient(135deg, var(--gold-dark), var(--gold-primary));
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--foreground-inverse);
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.625rem 1.25rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-gold:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md), 0 0 20px rgba(245, 158, 11, 0.3);
+  filter: brightness(1.1);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Cards - Elevated Surfaces
+   ═══════════════════════════════════════════════════════════════ */
+.card {
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  transition: all 0.2s ease;
+}
+
+.card:hover {
+  border-color: var(--border-color-strong);
+  box-shadow: var(--shadow-md);
+}
+
+.card-elevated {
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-color-strong);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-md);
+}
+
+.card-accent {
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color-accent);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-glow);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Tables - Premium Dark Theme
+   ═══════════════════════════════════════════════════════════════ */
+.table-premium {
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.table-premium th {
+  background: var(--background-tertiary);
+  color: var(--foreground-muted);
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color-strong);
+}
+
+.table-premium td {
+  color: var(--foreground);
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.875rem;
+}
+
+.table-premium tr:last-child td {
+  border-bottom: none;
+}
+
+.table-premium tbody tr {
+  transition: background 0.15s ease;
+}
+
+.table-premium tbody tr:hover {
+  background: var(--hover-bg);
+}
+
+/* Legacy table-warm support (redirects to premium) */
+.table-warm {
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.table-warm th {
+  background: linear-gradient(135deg, var(--accent-gradient-from), var(--accent-gradient-to));
+  color: white;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.875rem 1rem;
+  text-align: left;
+}
+
+.table-warm td {
+  border-bottom: 1px solid var(--border-color);
+  color: var(--foreground);
+  padding: 0.875rem 1rem;
+  font-size: 0.875rem;
+}
+
+.table-warm tr:hover td {
+  background: var(--hover-bg);
+}
+
+.table-warm tr:last-child td {
+  border-bottom: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Utility Classes
+   ═══════════════════════════════════════════════════════════════ */
+.text-accent { color: var(--accent-primary); }
+.text-gold { color: var(--gold-primary); }
+.text-success { color: var(--success); }
+.text-warning { color: var(--warning); }
+.text-error { color: var(--error); }
+.text-muted { color: var(--foreground-muted); }
+.text-subtle { color: var(--foreground-subtle); }
+
+.bg-accent { background: var(--accent-primary); }
+.bg-accent-muted { background: var(--accent-primary-muted); }
+.bg-gold { background: var(--gold-primary); }
+.bg-gold-muted { background: var(--gold-muted); }
+.bg-success-muted { background: var(--success-muted); }
+.bg-warning-muted { background: var(--warning-muted); }
+.bg-error-muted { background: var(--error-muted); }
+
+.gradient-accent {
+  background: linear-gradient(135deg, var(--accent-gradient-from), var(--accent-gradient-to));
+}
+
+.gradient-gold {
+  background: linear-gradient(135deg, var(--gold-dark), var(--gold-primary));
+}
+
+.glow-accent {
+  box-shadow: var(--shadow-glow);
+}
+
+/* Floor indicator badges */
+.floor-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.floor-badge-1 {
+  background: var(--floor1-primary-muted);
+  color: var(--floor1-primary);
+  border: 1px solid rgba(20, 184, 166, 0.3);
+}
+
+.floor-badge-2 {
+  background: var(--floor2-primary-muted);
+  color: var(--floor2-primary);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+}
+
+/* Reconciliation row highlight */
+.row-reconciled {
+  background: var(--info-muted) !important;
+}
+
+.row-reconciled:hover {
+  background: rgba(59, 130, 246, 0.25) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LIGHT THEME - Applied via .light class on <html>
+   ═══════════════════════════════════════════════════════════════ */
+html.light {
+  /* Core Backgrounds - Clean whites and soft grays */
+  --background: #f8fafc;           /* Main background - slate-50 */
+  --background-secondary: #ffffff; /* Cards, panels - white */
+  --background-tertiary: #f1f5f9;  /* Elevated surfaces - slate-100 */
+  --background-elevated: #ffffff;  /* Modals, dropdowns */
+  
+  /* Text Colors - High contrast for readability */
+  --foreground: #0f172a;           /* Primary text - slate-900 */
+  --foreground-muted: #64748b;     /* Secondary text - slate-500 */
+  --foreground-subtle: #94a3b8;    /* Tertiary/disabled text - slate-400 */
+  --foreground-inverse: #ffffff;   /* Text on dark backgrounds */
+  
+  /* Borders & Surfaces - Light theme */
+  --border-color: rgba(0, 0, 0, 0.08);
+  --border-color-strong: rgba(0, 0, 0, 0.15);
+  --border-color-accent: rgba(20, 184, 166, 0.3);
+  
+  /* Shadows - Softer for light theme */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 12px 40px rgba(0, 0, 0, 0.15);
+  --shadow-glow: 0 0 20px rgba(20, 184, 166, 0.2);
+  
+  /* Legacy compatibility */
+  --shadow-soft: rgba(0, 0, 0, 0.08);
+  --shadow-medium: rgba(0, 0, 0, 0.12);
+  
+  /* Interactive states */
+  --hover-bg: rgba(0, 0, 0, 0.05);
+  --active-bg: rgba(0, 0, 0, 0.1);
+}
+
+/* Light theme scrollbar */
+html.light ::-webkit-scrollbar-track {
+  background: var(--background-tertiary);
+}
+
+html.light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-primary);
+}
+
+html.light * {
+  scrollbar-color: #cbd5e1 var(--background-tertiary);
+}
+
+/* Light theme Floor 2 overrides */
+html.light [data-floor="2"] {
+  --shadow-glow: 0 0 20px rgba(139, 92, 246, 0.2);
+}
+
