@@ -16,7 +16,7 @@ def check_subscription_status(email: str, supabase: Client) -> dict:
             return {
                 'has_subscription': True,
                 'status': user.get('subscription_status', 'inactive'),
-                'is_active': user.get('subscription_status') in ('active', 'trialing')
+                'is_active': user.get('subscription_status') in ('active', 'trialing', 'trial')
             }
     except Exception as e:
         st.error(f"Error checking subscription: {e}")
@@ -265,7 +265,7 @@ def show_login_form():
                                 if user.get('password_set', False) and user.get('password_hash'):
                                     # Verify password (for MVP, simple comparison - should hash in production!)
                                     if password == user.get('password_hash'):
-                                        if user.get('subscription_status') in ('active', 'trialing'):
+                                        if user.get('subscription_status') in ('active', 'trialing', 'trial'):
                                             st.session_state["password_correct"] = True
                                             st.session_state["user_email"] = correct_email  # Use correct case from DB
                                             st.session_state["user_id"] = user.get('id')  # Store user_id for proper filtering!
@@ -283,6 +283,10 @@ def show_login_form():
                                             elif sub_status == 'cancelled':
                                                 st.warning("Your subscription has been cancelled.")
                                                 st.info("To regain access, start a new subscription using the **'Start Free Trial'** tab above.")
+                                            elif sub_status in ('trial', 'trialing'):
+                                                # Should not normally reach here since trial/trialing allow login above,
+                                                # but guard against edge cases (e.g. DB inconsistency).
+                                                st.info("🎁 Your trial account is active. Please contact support if you are having trouble logging in.")
                                             else:
                                                 st.error("No active subscription found. Please subscribe to continue.")
                                                 st.info(f"Account status: **{sub_status}** — Use the 'Start Free Trial' tab above to subscribe.")

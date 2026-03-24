@@ -17779,14 +17779,19 @@ CREATE TABLE IF NOT EXISTS deleted_policies (
                         # Show subscription status with appropriate styling
                         if subscription_status == 'active':
                             st.success("✅ Your subscription is active")
-                        elif subscription_status == 'trialing':
+                        elif subscription_status in ('trialing', 'trial'):
                             # Calculate trial days remaining
                             created_at = user.get('created_at', '')
                             if created_at:
-                                created_date = dt.fromisoformat(created_at.replace('Z', '+00:00'))
-                                trial_end = created_date + datetime.timedelta(days=14)
-                                days_left = (trial_end - dt.now(trial_end.tzinfo)).days
-                                st.info(f"🎁 Free trial active - {days_left} days remaining")
+                                try:
+                                    created_date = dt.fromisoformat(created_at.replace('Z', '+00:00'))
+                                    trial_end = created_date + datetime.timedelta(days=14)
+                                    days_left = max((trial_end - dt.now(trial_end.tzinfo)).days, 0)
+                                    st.info(f"🎁 Free trial active - {days_left} days remaining")
+                                except Exception:
+                                    st.info("🎁 Free trial active")
+                            else:
+                                st.info("🎁 Free trial active")
                         elif subscription_status == 'cancelled':
                             st.warning("⚠️ Your subscription has been cancelled")
                         else:
