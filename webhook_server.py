@@ -165,8 +165,8 @@ def stripe_webhook():
                     from auth_helpers import generate_setup_token
                     setup_token = generate_setup_token()
                     
-                    # Store token in database (expires in 1 hour)
-                    expires_at = (datetime.utcnow() + timedelta(hours=1)).isoformat()
+                    # Store token in database (expires in 24 hours — 1 hour was too short for email delivery)
+                    expires_at = (datetime.utcnow() + timedelta(hours=24)).isoformat()
                     
                     token_data = {
                         'email': customer_email.lower() if customer_email else '',  # Store lowercase

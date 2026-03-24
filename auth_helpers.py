@@ -636,7 +636,17 @@ def show_password_setup_form(setup_token: str):
             from datetime import datetime
             expires_at = datetime.fromisoformat(token_data['expires_at'].replace('Z', '+00:00'))
             if expires_at < datetime.now(expires_at.tzinfo):
-                st.error("This setup link has expired. Please contact support.")
+                st.error("This setup link has expired.")
+                st.info(
+                    "**To get access without contacting support:**\n"
+                    "1. Click **Back to Login** below\n"
+                    "2. Click **Forgot Password?** on the login page\n"
+                    "3. Enter your email to receive a new password link\n\n"
+                    "If you don't receive an email, check your spam folder."
+                )
+                if st.button("← Back to Login", key="expired_setup_back"):
+                    st.query_params.clear()
+                    st.rerun()
                 return
             
             # Show password setup form
