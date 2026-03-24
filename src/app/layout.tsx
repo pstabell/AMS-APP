@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AMS Dash App | Agency Management System",
-  description: "Streamline your agency's commission tracking and management with AMS Dash App.",
+  title: "Agent Management System | Commission Tracking",
+  description: "Track commissions, manage policies, and grow your book of business with Agent Management System.",
 };
 
 export default function RootLayout({

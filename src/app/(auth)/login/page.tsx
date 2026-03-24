@@ -19,16 +19,6 @@ const EyeOffIcon = () => (
   </svg>
 );
 
-// Shield logo SVG
-const ShieldLogo = () => (
-  <svg width="64" height="72" viewBox="0 0 64 72" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M32 0L0 12v24c0 20 14 34 32 36 18-2 32-16 32-36V12L32 0z" fill="#1a1a2e"/>
-    <path d="M32 4L4 14v22c0 18 12 30 28 32 16-2 28-14 28-32V14L32 4z" fill="#16213e"/>
-    <path d="M32 8L8 17v19c0 16 10 27 24 29 14-2 24-13 24-29V17L32 8z" fill="#1a1a2e" stroke="#c8a84e" strokeWidth="1.5"/>
-    <text x="32" y="48" textAnchor="middle" fill="#c8a84e" fontSize="32" fontWeight="bold" fontFamily="serif">$</text>
-  </svg>
-);
-
 type TabType = "login" | "trial" | "agency";
 
 export default function LoginPage() {
@@ -78,9 +68,9 @@ export default function LoginPage() {
         <div className="w-full max-w-lg">
           {/* Logo & Title */}
           <div className="flex items-center gap-4 mb-8">
-            <ShieldLogo />
+            <img src="/ams-logo.png" alt="AMS" className="w-16 h-16 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
             <h1 className="text-3xl font-bold text-slate-800 leading-tight">
-              Agent Management System
+              {activeTab === "agency" ? "Agency Management System" : "Agent Management System"}
             </h1>
           </div>
 
@@ -254,7 +244,6 @@ export default function LoginPage() {
           <Link href="/privacy" className="hover:text-slate-600">Privacy Policy</Link>
         </div>
         <p className="mt-2">© 2025 Metro Point Technology LLC. All rights reserved.</p>
-        <p className="mt-1">Agent Management System™ is a product of Metro Point Technology LLC.</p>
       </footer>
     </div>
   );

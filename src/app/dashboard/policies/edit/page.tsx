@@ -930,8 +930,8 @@ function EditPoliciesPageContent() {
             <span>·</span>
             <a href="/privacy" className="hover:text-slate-700">Privacy Policy</a>
           </div>
-          <p className="mt-2">© 2025 Metro Technology Solutions LLC. All rights reserved.</p>
-          <p className="mt-1">AMS Dash App™ is a trademark of Metro Technology Solutions LLC.</p>
+          <p className="mt-2">© 2025 Metro Point Technology LLC. All rights reserved.</p>
+          <p className="mt-1">Agent Management System™ is a product of Metro Point Technology LLC.</p>
         </div>
       </footer>
     </div>
