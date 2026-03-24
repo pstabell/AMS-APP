@@ -11,9 +11,16 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/signup") ||
     pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/reset-password") ||
+    pathname.startsWith("/terms") ||
+    pathname.startsWith("/privacy") ||
+    pathname.startsWith("/services") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api") ||
-    pathname === "/favicon.ico"
+    pathname === "/favicon.ico" ||
+    pathname.endsWith(".png") ||
+    pathname.endsWith(".svg") ||
+    pathname.endsWith(".jpg") ||
+    pathname.endsWith(".ico")
   ) {
     return NextResponse.next();
   }
@@ -29,5 +36,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next|favicon.ico|login|signup|forgot-password|reset-password|api).*)"],
+  matcher: ["/((?!_next|favicon.ico|.*\\.png|.*\\.svg|.*\\.jpg|.*\\.ico|login|signup|forgot-password|reset-password|terms|privacy|services|api).*)"],
 };

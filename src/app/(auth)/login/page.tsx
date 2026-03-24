@@ -70,7 +70,7 @@ export default function LoginPage() {
           <div className="flex items-center gap-4 mb-8">
             <img src="/ams-logo.png" alt="AMS" className="w-16 h-16 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
             <h1 className="text-3xl font-bold text-slate-800 leading-tight">
-              {activeTab === "agency" ? "Agency Management System" : "Agent Management System"}
+              {activeTab === "agency" ? "Agency Commission Tracker" : "Agent Commission Tracker"}
             </h1>
           </div>
 
