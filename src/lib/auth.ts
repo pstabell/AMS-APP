@@ -152,8 +152,8 @@ export async function login(email: string, password: string): Promise<AuthResult
     return { user: null, error: "Incorrect password." };
   }
 
-  if (data.subscription_status !== "active") {
-    return { user: null, error: "Your subscription is not active." };
+  if (data.subscription_status !== "active" && data.subscription_status !== "trialing") {
+    return { user: null, error: "Your subscription is not active. Please start a free trial or contact support." };
   }
 
   // Resolve role from agents table (or fall back to solo agent)
@@ -196,14 +196,37 @@ export async function signup(email: string, password: string): Promise<AuthResul
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  const newUser = {
+  // Check if this email already went through Stripe checkout (paid before creating account)
+  let subscriptionStatus = "inactive";
+  let stripeCustomerId: string | null = null;
+  try {
+    const res = await fetch("/api/billing/check-subscription", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: normalizedEmail }),
+    });
+    if (res.ok) {
+      const stripeData = await res.json();
+      if (stripeData.status === "active" || stripeData.status === "trialing") {
+        subscriptionStatus = stripeData.status;
+        stripeCustomerId = stripeData.customerId || null;
+      }
+    }
+  } catch {
+    // If Stripe check fails, continue with inactive — webhook will catch up
+  }
+
+  const newUser: Record<string, unknown> = {
     id: crypto.randomUUID(),
     email: normalizedEmail,
     password_hash: hashedPassword,
     password_set: true,
-    subscription_status: "inactive",
+    subscription_status: subscriptionStatus,
     created_at: new Date().toISOString(),
   };
+  if (stripeCustomerId) {
+    newUser.stripe_customer_id = stripeCustomerId;
+  }
 
   const { data, error } = await supabase
     .from("users")

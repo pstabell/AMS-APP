@@ -22,18 +22,20 @@ export default function SignupPage() {
       return;
     }
     setSuccess(true);
-    setTimeout(() => router.push("/login"), 1200);
+    // If user already has an active/trialing subscription (paid via Stripe before signup), go straight to login
+    const redirectDelay = result.user?.subscription_status === "active" || result.user?.subscription_status === "trialing" ? 800 : 1200;
+    setTimeout(() => router.push("/login"), redirectDelay);
   };
 
   return (
     <div className="space-y-6">
       <div className="space-y-2">
         <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          AMS-APP
+          Agent Commission Tracker
         </p>
         <h1 className="text-2xl font-semibold text-slate-900">Create your account</h1>
         <p className="text-sm text-slate-600">
-          New accounts start inactive until a subscription is activated.
+          Already started a free trial? Create your account with the same email to activate instantly.
         </p>
       </div>
 

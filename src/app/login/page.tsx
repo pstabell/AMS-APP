@@ -38,6 +38,34 @@ export default function LoginPage() {
   const [agencyPassword, setAgencyPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [agreeTerms, setAgreeTerms] = useState(false);
+  const [trialEmail, setTrialEmail] = useState("");
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  const handleTrialCheckout = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setCheckoutError(null);
+    setCheckoutLoading(true);
+    try {
+      const res = await fetch("/api/billing/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trialEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setCheckoutError(data.error || "Failed to start checkout");
+        return;
+      }
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch {
+      setCheckoutError("Something went wrong. Please try again.");
+    } finally {
+      setCheckoutLoading(false);
+    }
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -133,8 +161,8 @@ export default function LoginPage() {
           {/* Free Trial Tab */}
           {activeTab === "trial" && (
             <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-slate-800">Subscribe to Agent Management System</h2>
-              <p className="text-sm text-slate-500">Unlock all features of Agent Management System</p>
+              <h2 className="text-2xl font-bold text-slate-800">Subscribe to Agent Commission Tracker</h2>
+              <p className="text-sm text-slate-500">Unlock all features of Agent Commission Tracker</p>
 
               <div className="space-y-2">
                 {[
@@ -156,14 +184,21 @@ export default function LoginPage() {
               <p className="text-slate-500 text-sm">Then $19.99/month</p>
               <p className="text-slate-400 text-xs">No charge for 14 days. Cancel anytime. Secure payment via Stripe.</p>
 
-              <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); router.push("/signup"); }}>
+              <form className="space-y-4" onSubmit={handleTrialCheckout}>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-slate-600">Enter your email to subscribe:</label>
-                  <input type="email" autoComplete="email" placeholder="you@agency.com" className={inputStyle} required />
+                  <input type="email" autoComplete="email" placeholder="you@agency.com" className={inputStyle}
+                    value={trialEmail} onChange={(e) => setTrialEmail(e.target.value)} required />
                 </div>
 
-                <button type="submit" className={orangeBtn}>
-                  🚀 Start Free Trial
+                {checkoutError && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                    {checkoutError}
+                  </div>
+                )}
+
+                <button type="submit" className={orangeBtn} disabled={checkoutLoading}>
+                  {checkoutLoading ? "Redirecting to Stripe..." : "Start Free Trial"}
                 </button>
               </form>
             </div>
@@ -243,7 +278,7 @@ export default function LoginPage() {
           <span>•</span>
           <Link href="/privacy" className="hover:text-slate-600">Privacy Policy</Link>
         </div>
-        <p className="mt-2">© 2025 Metro Point Technology LLC. All rights reserved.</p>
+        <p className="mt-2">© 2026 Metro Point Technology LLC. All rights reserved.</p>
       </footer>
     </div>
   );

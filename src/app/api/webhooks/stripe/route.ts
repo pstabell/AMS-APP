@@ -44,9 +44,13 @@ export async function POST(request: NextRequest) {
     // Handle the event
     switch (event.type) {
       case 'customer.subscription.created':
-      case 'customer.subscription.updated':
-        await handleSubscriptionEvent(event.data.object as Stripe.Subscription, 'active');
+      case 'customer.subscription.updated': {
+        const sub = event.data.object as Stripe.Subscription;
+        // Map Stripe subscription status to our status
+        const subStatus = sub.status === 'trialing' ? 'trialing' : sub.status === 'active' ? 'active' : sub.status === 'past_due' ? 'past_due' : 'inactive';
+        await handleSubscriptionEvent(sub, subStatus);
         break;
+      }
       
       case 'customer.subscription.deleted':
         await handleSubscriptionEvent(event.data.object as Stripe.Subscription, 'cancelled');
