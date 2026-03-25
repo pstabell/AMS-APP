@@ -940,8 +940,6 @@ def show_password_setup_form(setup_token: str):
                             if len(new_password) < 8:
                                 st.error("Password must be at least 8 characters long.")
                             elif new_password == confirm_password:
-                                # In a real app, you'd hash the password here
-                                # For MVP, we'll just store it (NOT SECURE - fix before production!)
                                 try:
                                     # First check if user exists
                                     user_check = supabase.table('users').select('email').eq('email', email).execute()
@@ -979,9 +977,10 @@ def show_password_setup_form(setup_token: str):
 
                                     st.session_state["password_correct"] = True
                                     st.session_state["user_email"] = email.lower()
+                                    st.session_state["is_new_user"] = True
                                     if uid:
                                         st.session_state["user_id"] = uid
-                                    
+
                                     st.success("✅ Password set successfully! Logging you in...")
                                     st.balloons()
                                     

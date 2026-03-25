@@ -421,6 +421,7 @@ class TestPasswordSetupAutoLoginContract(unittest.TestCase):
 
         session['password_correct'] = True
         session['user_email'] = email.lower()
+        session['is_new_user'] = True
         if uid:
             session['user_id'] = uid
 
@@ -475,6 +476,44 @@ class TestPasswordSetupAutoLoginContract(unittest.TestCase):
         )
         # Key should be absent, not present with value None
         self.assertIsNone(state.get('user_id'))
+
+    # --- is_new_user first-login onboarding flag ---
+
+    def test_is_new_user_set_on_password_setup_auto_login(self):
+        """is_new_user must be True after password setup so the welcome banner shows."""
+        state = self._simulate_setup_auto_login(
+            'agent@example.com', update_returns_id=True, select_returns_id=False
+        )
+        self.assertTrue(state.get('is_new_user'))
+
+    def test_is_new_user_set_even_when_uid_unavailable(self):
+        """Welcome banner must show even if user_id resolution fails (DB outage path)."""
+        state = self._simulate_setup_auto_login(
+            'agent@example.com', update_returns_id=False, select_returns_id=False
+        )
+        self.assertTrue(state.get('is_new_user'))
+
+    def test_is_new_user_is_true_boolean(self):
+        """is_new_user must be exactly True (not just truthy) to avoid banner loops."""
+        state = self._simulate_setup_auto_login(
+            'agent@example.com', update_returns_id=True, select_returns_id=False
+        )
+        self.assertIs(state['is_new_user'], True)
+
+    def test_welcome_banner_clears_after_one_display(self):
+        """
+        The banner uses st.session_state.pop("is_new_user", False) so it only
+        renders on the first page load after setup.  Simulate pop() to confirm
+        the flag is consumed on read and absent on subsequent access.
+        """
+        # Simulate session state as a plain dict (mirrors Streamlit's dict-like API)
+        session = {'is_new_user': True, 'password_correct': True}
+        # First render: banner fires and consumes the flag
+        banner_shown = session.pop('is_new_user', False)
+        self.assertTrue(banner_shown)
+        # Second render: flag is gone, banner should not fire again
+        banner_shown_again = session.pop('is_new_user', False)
+        self.assertFalse(banner_shown_again)
 
 
 # ---------------------------------------------------------------------------

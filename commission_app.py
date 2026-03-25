@@ -6837,7 +6837,17 @@ def main():
     # Check password before showing any content
     if not check_password():
         st.stop()
-    
+
+    # One-time welcome banner for new subscribers (set by show_password_setup_form on first login)
+    if st.session_state.pop("is_new_user", False):
+        st.success(
+            "🎉 **Welcome to Agent Commission Tracker!** Your 14-day free trial is active.\n\n"
+            "**Get started in 3 steps:**\n"
+            "1. Go to **Contacts** to add your carriers and MGAs.\n"
+            "2. Use **Add New Policy Transaction** to record your first commission.\n"
+            "3. Run **Reports** to see your earnings summary."
+        )
+
     # Add mobile session debug tracking
     if 'page_loads' not in st.session_state:
         st.session_state.page_loads = 0
