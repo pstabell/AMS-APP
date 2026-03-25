@@ -797,15 +797,19 @@ def show_password_setup_form(setup_token: str):
             if expires_at < datetime.now(expires_at.tzinfo):
                 st.error("This setup link has expired.")
                 st.info(
-                    "**To get access without contacting support:**\n"
-                    "1. Click **Back to Login** below\n"
-                    "2. Click **Forgot Password?** on the login page\n"
-                    "3. Enter your email to receive a new password link\n\n"
-                    "If you don't receive an email, check your spam folder."
+                    "Click **Resend Setup Email** to get a fresh 24-hour link sent to "
+                    "your inbox, or click **Back to Login** if you already set your password."
                 )
-                if st.button("← Back to Login", key="expired_setup_back"):
-                    st.query_params.clear()
-                    st.rerun()
+                col1, col2 = st.columns([2, 3])
+                with col1:
+                    if st.button("📧 Resend Setup Email", type="primary", key="resend_from_expired_setup"):
+                        st.session_state['show_resend_setup'] = True
+                        st.session_state['resend_setup_target_email'] = token_data['email']
+                        st.query_params.clear()
+                        st.rerun()
+                    if st.button("← Back to Login", key="expired_setup_back"):
+                        st.query_params.clear()
+                        st.rerun()
                 return
             
             # Show password setup form
