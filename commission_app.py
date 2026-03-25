@@ -270,8 +270,13 @@ def show_personal_login():
         """, unsafe_allow_html=True)
 
     with tab2:
-        st.write("### Start your free trial")
-        st.write("Please contact sales or admin to start a free trial.")
+        try:
+            from auth_helpers import show_subscribe_tab
+            show_subscribe_tab()
+        except ImportError:
+            st.write("### Start Your 14-Day Free Trial")
+            st.write("$19.99/month after trial. No charge for 14 days. Cancel anytime.")
+            st.info("Please contact support to get started.")
 
 
 def show_production_login():
@@ -314,8 +319,13 @@ def show_production_login():
                 st.error("Invalid password")
         
         with tab2:
-            st.write("### Start your free trial")
-            st.write("Please contact sales or admin to start a free trial.")
+            try:
+                from auth_helpers import show_subscribe_tab
+                show_subscribe_tab()
+            except ImportError:
+                st.write("### Start Your 14-Day Free Trial")
+                st.write("$19.99/month after trial. No charge for 14 days. Cancel anytime.")
+                st.error("Subscription service temporarily unavailable. Please try again shortly.")
 
 
 def check_password():
