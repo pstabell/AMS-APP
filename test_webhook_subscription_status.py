@@ -42,7 +42,11 @@ sys.modules['stripe'] = _stripe_stub
 sys.modules['email_utils'] = MagicMock()
 
 # Now we can safely import the module under test.
-from webhook_server import _get_subscription_status_from_stripe  # noqa: E402
+from webhook_server import (  # noqa: E402
+    _get_subscription_status_from_stripe,
+    _get_subscription_info_from_stripe,
+    _resolve_tier_from_price_id,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -129,6 +133,98 @@ class TestGetSubscriptionStatus(unittest.TestCase):
             result = _get_subscription_status_from_stripe(
                 'sub_123', {'payment_status': 'no_payment_required'}
             )
+        self.assertEqual(result, 'trialing')
+
+
+# ---------------------------------------------------------------------------
+# Tests for _resolve_tier_from_price_id()
+# ---------------------------------------------------------------------------
+class TestResolveTierFromPriceId(unittest.TestCase):
+
+    def test_returns_none_for_missing_price_id(self):
+        """No price_id → None (caller should use 'legacy')."""
+        with patch.dict(os.environ, {}, clear=False):
+            self.assertIsNone(_resolve_tier_from_price_id(None))
+            self.assertIsNone(_resolve_tier_from_price_id(''))
+
+    def test_explicit_tier_env_vars(self):
+        """STRIPE_PRICE_ID_BASIC / _PLUS / _PRO map correctly."""
+        env = {
+            'STRIPE_PRICE_ID_BASIC': 'price_basic_123',
+            'STRIPE_PRICE_ID_PLUS': 'price_plus_456',
+            'STRIPE_PRICE_ID_PRO': 'price_pro_789',
+        }
+        with patch.dict(os.environ, env):
+            self.assertEqual(_resolve_tier_from_price_id('price_basic_123'), 'basic')
+            self.assertEqual(_resolve_tier_from_price_id('price_plus_456'), 'plus')
+            self.assertEqual(_resolve_tier_from_price_id('price_pro_789'), 'pro')
+
+    def test_generic_stripe_price_id_maps_to_basic(self):
+        """Generic STRIPE_PRICE_ID (the current single plan) maps to 'basic'."""
+        with patch.dict(os.environ, {'STRIPE_PRICE_ID': 'price_generic_abc'}):
+            self.assertEqual(_resolve_tier_from_price_id('price_generic_abc'), 'basic')
+
+    def test_unknown_price_id_returns_none(self):
+        """Unrecognised price ID → None → should become 'legacy'."""
+        with patch.dict(os.environ, {'STRIPE_PRICE_ID': 'price_known'}):
+            self.assertIsNone(_resolve_tier_from_price_id('price_unknown_xyz'))
+
+    def test_explicit_tier_wins_over_generic(self):
+        """Explicit per-tier var takes precedence over generic STRIPE_PRICE_ID."""
+        env = {
+            'STRIPE_PRICE_ID': 'price_generic',
+            'STRIPE_PRICE_ID_PRO': 'price_generic',  # same ID → pro tier
+        }
+        with patch.dict(os.environ, env):
+            self.assertEqual(_resolve_tier_from_price_id('price_generic'), 'pro')
+
+
+# ---------------------------------------------------------------------------
+# Tests for _get_subscription_info_from_stripe()
+# ---------------------------------------------------------------------------
+class TestGetSubscriptionInfo(unittest.TestCase):
+
+    def test_returns_status_and_price_id_from_stripe(self):
+        """Retrieves both status and price_id from the subscription object."""
+        mock_sub = {
+            'status': 'trialing',
+            'items': {'data': [{'price': {'id': 'price_abc'}}]},
+        }
+        with patch('webhook_server.stripe') as mock_stripe:
+            mock_stripe.api_key = 'sk_test_fake'
+            mock_stripe.Subscription.retrieve.return_value = mock_sub
+            status, price_id = _get_subscription_info_from_stripe('sub_123', {})
+        self.assertEqual(status, 'trialing')
+        self.assertEqual(price_id, 'price_abc')
+
+    def test_price_id_none_when_items_missing(self):
+        """Returns price_id=None when subscription has no items data."""
+        mock_sub = {'status': 'active', 'items': {'data': []}}
+        with patch('webhook_server.stripe') as mock_stripe:
+            mock_stripe.api_key = 'sk_test_fake'
+            mock_stripe.Subscription.retrieve.return_value = mock_sub
+            status, price_id = _get_subscription_info_from_stripe('sub_123', {})
+        self.assertEqual(status, 'active')
+        self.assertIsNone(price_id)
+
+    def test_fallback_returns_none_price_id(self):
+        """Heuristic fallback path always returns price_id=None."""
+        with patch('webhook_server.stripe') as mock_stripe:
+            mock_stripe.api_key = None
+            status, price_id = _get_subscription_info_from_stripe(
+                'sub_123', {'payment_status': 'no_payment_required'}
+            )
+        self.assertEqual(status, 'trialing')
+        self.assertIsNone(price_id)
+
+    def test_backward_compat_wrapper_still_works(self):
+        """_get_subscription_status_from_stripe() still returns a string."""
+        with patch('webhook_server.stripe') as mock_stripe:
+            mock_stripe.api_key = None
+            result = _get_subscription_status_from_stripe(
+                'sub_123', {'payment_status': 'no_payment_required'}
+            )
+        self.assertIsInstance(result, str)
         self.assertEqual(result, 'trialing')
 
 

@@ -39,32 +39,77 @@ def health_check():
     """Health check endpoint for Render."""
     return jsonify({'status': 'healthy', 'version': '1.1'}), 200
 
-def _get_subscription_status_from_stripe(subscription_id, session):
-    """Return the real Stripe subscription status instead of assuming 'active'.
+def _resolve_tier_from_price_id(price_id):
+    """Map a Stripe price ID to a subscription tier name.
 
-    For 14-day trial sign-ups the Stripe subscription status is 'trialing', not
-    'active'.  This function fetches the subscription object when possible so the
-    DB accurately reflects the Stripe state.  Falls back to a heuristic (payment
-    not required ⟹ trialing) and ultimately to 'active' if Stripe is unreachable.
+    Checks, in order:
+      1. Explicit per-tier env vars: STRIPE_PRICE_ID_BASIC, STRIPE_PRICE_ID_PLUS,
+         STRIPE_PRICE_ID_PRO (case-insensitive tier names).
+      2. The generic STRIPE_PRICE_ID env var → mapped to 'basic' (the current
+         single-plan default).
+
+    Returns the tier string ('basic', 'plus', 'pro', …) when a match is found,
+    or None when the price ID is absent or unrecognised — callers should treat
+    None as 'legacy' (pre-tier subscriber).
+    """
+    if not price_id:
+        return None
+
+    tier_map = {}
+    for tier in ('basic', 'plus', 'pro'):
+        env_val = os.getenv(f'STRIPE_PRICE_ID_{tier.upper()}')
+        if env_val:
+            tier_map[env_val] = tier
+
+    # Generic fallback: the single current price maps to 'basic'.
+    generic = os.getenv('STRIPE_PRICE_ID')
+    if generic and generic not in tier_map:
+        tier_map[generic] = 'basic'
+
+    return tier_map.get(price_id)
+
+
+def _get_subscription_info_from_stripe(subscription_id, session):
+    """Return (status, price_id) from the live Stripe subscription.
+
+    Fetches the subscription object so we get the real status (e.g. 'trialing'
+    for 14-day trials) and the price ID for tier resolution.  Falls back to
+    heuristics when Stripe is unreachable.
     """
     if subscription_id and stripe.api_key:
         try:
             sub = stripe.Subscription.retrieve(subscription_id)
             stripe_status = sub.get('status', 'active')
-            # Pass through any valid Stripe status; normalise 'canceled' (Stripe
-            # spelling) to 'cancelled' (our DB spelling) for consistency.
             if stripe_status == 'canceled':
-                return 'cancelled'
+                stripe_status = 'cancelled'
             known = {'active', 'trialing', 'past_due', 'cancelled', 'unpaid', 'incomplete'}
-            return stripe_status if stripe_status in known else 'active'
+            status = stripe_status if stripe_status in known else 'active'
+
+            # Extract the price ID from the first subscription item.
+            items_data = (sub.get('items') or {}).get('data') or []
+            price_id = None
+            if items_data:
+                price_id = (items_data[0].get('price') or {}).get('id')
+
+            return status, price_id
         except Exception as e:
-            print(f"Warning: could not retrieve Stripe subscription status: {e}")
+            print(f"Warning: could not retrieve Stripe subscription: {e}")
 
-    # Heuristic fallback: if Stripe required no payment the session is a trial.
+    # Heuristic fallback: no Stripe API access.
     if session.get('payment_status') == 'no_payment_required':
-        return 'trialing'
+        return 'trialing', None
 
-    return 'active'
+    return 'active', None
+
+
+def _get_subscription_status_from_stripe(subscription_id, session):
+    """Backward-compatible wrapper — returns status string only.
+
+    Prefer _get_subscription_info_from_stripe() when the price ID is also
+    needed (e.g. for tier resolution during checkout).
+    """
+    status, _ = _get_subscription_info_from_stripe(subscription_id, session)
+    return status
 
 
 @app.route('/stripe-webhook', methods=['POST'])
@@ -133,10 +178,14 @@ def stripe_webhook():
             app.logger.error(f"Error processing session: {e}")
             return jsonify({'error': str(e)}), 500
         
-        # Determine the real subscription status from Stripe (e.g. 'trialing' for
-        # 14-day trial sign-ups) rather than blindly hardcoding 'active'.
-        actual_status = _get_subscription_status_from_stripe(subscription_id, session)
-        print(f"Resolved subscription status: {actual_status}")
+        # Determine the real subscription status AND price ID from Stripe so we
+        # can resolve the correct tier instead of always writing 'legacy'.
+        actual_status, stripe_price_id = _get_subscription_info_from_stripe(subscription_id, session)
+        resolved_tier = _resolve_tier_from_price_id(stripe_price_id)
+        # Fall back to 'legacy' only when no price can be resolved — this
+        # preserves the grandfather behaviour for pre-tier subscribers.
+        subscription_tier = resolved_tier if resolved_tier is not None else 'legacy'
+        print(f"Resolved subscription status: {actual_status}, price_id: {stripe_price_id}, tier: {subscription_tier}")
 
         # Extract and log legal-acceptance metadata captured at checkout.
         # Stored in Stripe metadata; logged here for server-side audit trail.
@@ -177,7 +226,8 @@ def stripe_webhook():
                         'stripe_customer_id': stripe_customer_id,
                         'subscription_id': subscription_id,
                         'subscription_status': actual_status,
-                        'subscription_tier': 'legacy',  # All current users are legacy
+                        'subscription_tier': subscription_tier,
+                        'stripe_price_id': stripe_price_id,
                         'subscription_updated_at': datetime.now().isoformat()
                     }
                     update_result = supabase.table('users').update(update_data).eq('email', customer_email).execute()
@@ -199,13 +249,14 @@ def stripe_webhook():
                             print(f"Error sending welcome back email: {e}")
                 else:
                     # Create new user
-                    print(f"Creating new user with status={actual_status}...")
+                    print(f"Creating new user with status={actual_status}, tier={subscription_tier}...")
                     user_data = {
                         'email': customer_email.lower() if customer_email else '',  # Store lowercase
                         'stripe_customer_id': stripe_customer_id,
                         'subscription_id': subscription_id,
                         'subscription_status': actual_status,
-                        'subscription_tier': 'legacy',  # All current users are legacy
+                        'subscription_tier': subscription_tier,
+                        'stripe_price_id': stripe_price_id,
                         'created_at': datetime.now().isoformat()
                     }
                     insert_result = supabase.table('users').insert(user_data).execute()
