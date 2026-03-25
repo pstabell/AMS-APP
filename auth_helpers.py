@@ -771,7 +771,7 @@ def show_password_setup_form(setup_token: str):
                                     
                                     # Set session state to log them in automatically
                                     st.session_state["password_correct"] = True
-                                    st.session_state["user_email"] = email
+                                    st.session_state["user_email"] = email.lower()
                                     # Get user_id from the update result
                                     if update_result.data and update_result.data[0].get('id'):
                                         st.session_state["user_id"] = update_result.data[0]['id']
