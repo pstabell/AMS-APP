@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 
 const DEMO_EMAIL = "demo@agentcommissiontracker.com";
 
-async function resolveUserId(request: NextRequest, body?: any): Promise<{ userId: string; error: null } | { userId: null; error: string }> {
+async function resolveUserId(request: NextRequest, body?: any): Promise<{ userId: string | null; error: string | null }> {
   // SECURITY FIX: Validate session instead of trusting spoofable headers
   const { user, error: authError } = await validateServerSession(request);
   if (authError || !user) {
