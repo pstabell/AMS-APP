@@ -24,6 +24,11 @@ FEATURES = {
     'onedrive_documents': True,  # Sprint 5, Task 5.3 - Document Management
     'commission_reconciliation': True,  # Sprint 5, Task 5.2 - Automated Commission Reconciliation (NEW!)
 
+    # Launch-phase toggles
+    # Set to False to hide the Agency Signup tab during the solo-agent launch.
+    # Flip to True when the agency tier is ready to open.
+    'agency_signup': False,
+
     # Future Features (not yet implemented)
     'white_label': False,  # Sprint 6
     'multi_language': False,  # Sprint 6

@@ -554,5 +554,50 @@ class TestSubscriptionOfferConfig(unittest.TestCase):
         self.assertIn('reconcili', joined)
 
 
+# ---------------------------------------------------------------------------
+# 10. Agency Signup feature flag
+# ---------------------------------------------------------------------------
+class TestAgencySignupFeatureFlag(unittest.TestCase):
+    """
+    Ensure FEATURES['agency_signup'] exists, is a bool, and defaults to False
+    for the solo-agent launch.  The agency signup code is preserved behind this
+    toggle — flipping it True re-enables the third tab without any code changes.
+    """
+
+    def setUp(self):
+        from config import FEATURES, is_feature_enabled
+        self.FEATURES = FEATURES
+        self.is_feature_enabled = is_feature_enabled
+
+    def test_agency_signup_key_present_in_features(self):
+        """FEATURES must have an 'agency_signup' entry."""
+        self.assertIn('agency_signup', self.FEATURES)
+
+    def test_agency_signup_is_bool(self):
+        """The flag must be a boolean so truthiness checks are unambiguous."""
+        self.assertIsInstance(self.FEATURES['agency_signup'], bool)
+
+    def test_agency_signup_disabled_for_solo_agent_launch(self):
+        """Agency Signup tab is hidden by default during the solo-agent launch."""
+        self.assertFalse(self.FEATURES['agency_signup'])
+
+    def test_is_feature_enabled_returns_false_for_agency_signup(self):
+        """is_feature_enabled() must return False for 'agency_signup' at launch."""
+        self.assertFalse(self.is_feature_enabled('agency_signup'))
+
+    def test_is_feature_enabled_honours_flag_when_true(self):
+        """Flipping the flag to True must make is_feature_enabled() return True."""
+        original = self.FEATURES['agency_signup']
+        try:
+            self.FEATURES['agency_signup'] = True
+            self.assertTrue(self.is_feature_enabled('agency_signup'))
+        finally:
+            self.FEATURES['agency_signup'] = original
+
+    def test_is_feature_enabled_unknown_key_returns_false(self):
+        """Unknown feature keys must not raise; they return False."""
+        self.assertFalse(self.is_feature_enabled('nonexistent_feature_xyz'))
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

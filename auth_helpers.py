@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import secrets
 import string
 import time
-from config import SUBSCRIPTION_OFFER
+from config import SUBSCRIPTION_OFFER, is_feature_enabled
 
 def check_subscription_status(email: str, supabase: Client) -> dict:
     """Check if user has active subscription."""
@@ -206,19 +206,23 @@ def show_production_login_with_auth():
                 st.query_params.clear()  # Clear the ?subscribe=true parameter
                 st.rerun()
         else:
-            # Normal tabs view - Added Agency Signup tab
-            tab1, tab2, tab3 = st.tabs(["Login", "Start Free Trial", "Agency Signup"])
-
-            with tab1:
-                show_login_form()
-
-            with tab2:
-                show_subscribe_tab()
-
-            with tab3:
-                # Import agency auth helpers
-                from agency_auth_helpers import show_agency_signup_form
-                show_agency_signup_form()
+            # Normal tabs view — Agency Signup tab is hidden during solo-agent launch
+            # (controlled by FEATURES['agency_signup'] in config.py).
+            if is_feature_enabled('agency_signup'):
+                tab1, tab2, tab3 = st.tabs(["Login", "Start Free Trial", "Agency Signup"])
+                with tab1:
+                    show_login_form()
+                with tab2:
+                    show_subscribe_tab()
+                with tab3:
+                    from agency_auth_helpers import show_agency_signup_form
+                    show_agency_signup_form()
+            else:
+                tab1, tab2 = st.tabs(["Login", "Start Free Trial"])
+                with tab1:
+                    show_login_form()
+                with tab2:
+                    show_subscribe_tab()
         
         # Add compact footer with legal links
         st.markdown("""
