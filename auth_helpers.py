@@ -997,7 +997,20 @@ def show_password_setup_form(setup_token: str):
                             st.error("Please enter and confirm your password.")
         else:
             st.error("Invalid or expired setup link.")
-            st.info("If you're having trouble, please contact support.")
-                
+            st.info(
+                "Your link may have already been used or has expired. "
+                "Click below to receive a fresh setup link, or **Back to Login** "
+                "if you already set your password."
+            )
+            col1, col2 = st.columns([2, 3])
+            with col1:
+                if st.button("📧 Resend Setup Email", type="primary", key="resend_from_invalid_setup"):
+                    st.session_state['show_resend_setup'] = True
+                    st.query_params.clear()
+                    st.rerun()
+                if st.button("← Back to Login", key="invalid_setup_back"):
+                    st.query_params.clear()
+                    st.rerun()
+
     except Exception as e:
         st.error(f"Error validating setup token: {e}")

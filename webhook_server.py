@@ -250,14 +250,43 @@ def stripe_webhook():
                     # Check if this is a reactivation (was cancelled/inactive before)
                     prev_status = result.data[0].get('subscription_status')
                     if prev_status not in ('active', 'trialing', 'trial'):
-                        # Send welcome back email
-                        try:
-                            print(f"Sending welcome back email to {customer_email}")
-                            email_sent = send_welcome_email(customer_email)
-                            if email_sent:
-                                print("Welcome back email sent successfully!")
-                        except Exception as e:
-                            print(f"Error sending welcome back email: {e}")
+                        # If the user never completed their initial password setup
+                        # (e.g. their original setup link expired before they clicked it),
+                        # send a fresh setup email so they can actually log in.
+                        # A plain welcome-back email is useless in that case.
+                        password_set = result.data[0].get('password_set', False)
+                        if not password_set:
+                            try:
+                                from auth_helpers import generate_setup_token
+                                setup_token = generate_setup_token()
+                                expires_at = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+                                token_data = {
+                                    'email': customer_email.lower() if customer_email else '',
+                                    'token': setup_token,
+                                    'expires_at': expires_at,
+                                    'used': False,
+                                }
+                                supabase.table('password_reset_tokens').insert(token_data).execute()
+                                app_url = os.getenv("RENDER_APP_URL", "https://commission-tracker-app.onrender.com")
+                                setup_link = f"{app_url}?setup_token={setup_token}"
+                                from email_utils import send_password_setup_email
+                                print(f"Reactivating subscriber {customer_email} never set password — sending setup email")
+                                email_sent = send_password_setup_email(customer_email, setup_link)
+                                if email_sent:
+                                    print("Password setup email (reactivation) sent successfully!")
+                                else:
+                                    print("Failed to send password setup email (reactivation)")
+                            except Exception as e:
+                                print(f"Error sending setup email to reactivating subscriber: {e}")
+                        else:
+                            # User has a password — send welcome back email
+                            try:
+                                print(f"Sending welcome back email to {customer_email}")
+                                email_sent = send_welcome_email(customer_email)
+                                if email_sent:
+                                    print("Welcome back email sent successfully!")
+                            except Exception as e:
+                                print(f"Error sending welcome back email: {e}")
                 else:
                     # Create new user
                     print(f"Creating new user with status={actual_status}, tier={subscription_tier}...")

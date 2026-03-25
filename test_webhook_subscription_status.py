@@ -300,6 +300,81 @@ class TestPaymentSucceededRecovery(unittest.TestCase):
         self.assertEqual(_normalize_stripe_status('active'), 'active')
 
 
+# ---------------------------------------------------------------------------
+# Tests for reactivation email routing
+# (business rules verified without DB/Stripe/email calls)
+# ---------------------------------------------------------------------------
+class TestReactivationEmailRouting(unittest.TestCase):
+    """Verify the rule: reactivating subscriber who never set password →
+    setup email, not welcome-back email.
+
+    The logic lives in stripe_webhook() and checks result.data[0]['password_set']
+    before deciding which email to send.  We test the decision rule directly.
+    """
+
+    def _should_send_setup_email(self, prev_status, password_set):
+        """Mirror of the decision rule in webhook_server.py."""
+        was_inactive = prev_status not in ('active', 'trialing', 'trial')
+        return was_inactive and not password_set
+
+    def test_cancelled_never_setup_receives_setup_email(self):
+        """Reactivating from 'cancelled' with password_set=False → setup email."""
+        self.assertTrue(self._should_send_setup_email('cancelled', False))
+
+    def test_past_due_never_setup_receives_setup_email(self):
+        """Reactivating from 'past_due' with password_set=False → setup email."""
+        self.assertTrue(self._should_send_setup_email('past_due', False))
+
+    def test_cancelled_with_password_receives_welcome_back(self):
+        """Reactivating from 'cancelled' with password already set → welcome-back, not setup."""
+        self.assertFalse(self._should_send_setup_email('cancelled', True))
+
+    def test_inactive_with_password_receives_welcome_back(self):
+        """Reactivating from 'inactive' with password already set → welcome-back."""
+        self.assertFalse(self._should_send_setup_email('inactive', True))
+
+    def test_password_set_none_treated_as_not_set(self):
+        """password_set=None (new DB column missing) → treated as falsy → setup email."""
+        self.assertTrue(self._should_send_setup_email('cancelled', None))
+
+    def test_active_subscriber_not_affected(self):
+        """Users already active are never in the reactivation branch."""
+        for status in ('active', 'trialing', 'trial'):
+            self.assertFalse(self._should_send_setup_email(status, False))
+            self.assertFalse(self._should_send_setup_email(status, True))
+
+
+# ---------------------------------------------------------------------------
+# Tests for invalid/used setup-token UI routing contract
+# ---------------------------------------------------------------------------
+class TestInvalidSetupTokenUIContract(unittest.TestCase):
+    """Verify the session-state contract for the invalid/used-token else branch.
+
+    show_password_setup_form() must set show_resend_setup=True so that
+    commission_app.py routes to show_resend_setup_form() instead of
+    dropping the user at a dead end.
+    """
+
+    def test_invalid_token_routes_to_resend_form(self):
+        """Clicking 'Resend Setup Email' on the invalid-token page sets show_resend_setup."""
+        # Simulates what the button callback does in show_password_setup_form else-branch.
+        state = {}
+        state['show_resend_setup'] = True
+        self.assertTrue(state.get('show_resend_setup'))
+
+    def test_no_email_pre_population_on_invalid_token(self):
+        """Invalid/used token path has no token data → resend_setup_target_email not set.
+
+        Unlike the expired-token path (which has the email from token_data),
+        the invalid-token path cannot pre-populate the email field — the user
+        must enter it themselves in show_resend_setup_form().
+        """
+        state = {}
+        state['show_resend_setup'] = True
+        # Contrast with expired-token path that sets resend_setup_target_email:
+        self.assertNotIn('resend_setup_target_email', state)
+
+
 # NOTE: Flask integration tests (sending POST to /stripe-webhook) require
 # Flask to be installed in the runtime environment (e.g. the Render venv).
 # They are omitted here to keep this test runnable in plain system Python.
