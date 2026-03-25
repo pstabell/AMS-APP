@@ -67,6 +67,40 @@ AI_CONFIG = {
 }
 
 # =============================================================================
+# SUBSCRIPTION OFFER COPY
+# =============================================================================
+# Edit these values to update the trial/offer presentation in the login UI
+# without touching application logic in auth_helpers.py.
+
+SUBSCRIPTION_OFFER = {
+    # Heading shown at the top of the "Start Free Trial" tab
+    'tab_heading': "Start Tracking Your Commissions",
+    # One-line description shown below the heading
+    'tab_tagline': (
+        "Everything a solo agent needs to track policies, "
+        "reconcile statements, and maximize earnings."
+    ),
+    # Feature bullet points — each item rendered with a leading ✅
+    'features': [
+        "Track All Your Policies & Commissions",
+        "Automated Statement Reconciliation",
+        "Earnings Reports & Analytics",
+        "Excel Import & Export",
+        "Carrier & MGA Management",
+        "Email Support",
+    ],
+    # Trial length in days (must match Stripe checkout kwargs)
+    'trial_days': 14,
+    # Price string shown after the trial period headline
+    'trial_price_monthly': "$19.99/month",
+    # Fine-print caption under the price
+    'trial_caption': (
+        "No charge for 14 days. Cancel anytime. Secure payment via Stripe."
+    ),
+}
+
+
+# =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
 

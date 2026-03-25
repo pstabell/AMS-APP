@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import secrets
 import string
 import time
+from config import SUBSCRIPTION_OFFER
 
 def check_subscription_status(email: str, supabase: Client) -> dict:
     """Check if user has active subscription."""
@@ -444,22 +445,19 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
 def show_subscribe_tab():
     """Show subscription options."""
     # Left-aligned content, no centering columns
-    st.subheader("Subscribe to Agent Commission Tracker")
-    st.write("Unlock all features of Agent Commission Tracker")
-    
-    # Feature list
-    st.markdown("""
-    ✅ **Unlimited Policy Tracking**  
-    ✅ **Advanced Reporting & Analytics**  
-    ✅ **Multi-User Collaboration**  
-    ✅ **Automated Reconciliation**  
-    ✅ **Excel Import/Export**  
-    ✅ **Priority Support**  
-    """)
-    
-    st.markdown("### Start Your 14-Day Free Trial")
-    st.markdown("Then $19.99/month")
-    st.caption("No charge for 14 days. Cancel anytime. Secure payment via Stripe.")
+    st.subheader(SUBSCRIPTION_OFFER['tab_heading'])
+    st.write(SUBSCRIPTION_OFFER['tab_tagline'])
+
+    # Feature list — built from config so copy can be updated without touching logic
+    feature_lines = "\n".join(
+        f"✅ **{f}**  " for f in SUBSCRIPTION_OFFER['features']
+    )
+    st.markdown(feature_lines)
+
+    trial_days = SUBSCRIPTION_OFFER['trial_days']
+    st.markdown(f"### Start Your {trial_days}-Day Free Trial")
+    st.markdown(f"Then {SUBSCRIPTION_OFFER['trial_price_monthly']}")
+    st.caption(SUBSCRIPTION_OFFER['trial_caption'])
     
     # Import Stripe only in production
     if os.getenv("APP_ENVIRONMENT") == "PRODUCTION":

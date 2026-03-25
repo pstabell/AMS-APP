@@ -8,6 +8,7 @@ Streamlit, no Supabase) and exercise four critical behaviors:
 2. Checkout session includes a 14-day free trial.
 3. Checkout uses payment_method_collection='if_required' (supports 100%-off coupons).
 4. Legal-acceptance metadata is passed through to Stripe.
+5. SUBSCRIPTION_OFFER config has the required keys and solo-agent copy.
 """
 import sys
 import os
@@ -469,6 +470,84 @@ class TestPasswordSetupAutoLoginContract(unittest.TestCase):
         )
         # Key should be absent, not present with value None
         self.assertIsNone(state.get('user_id'))
+
+
+# ---------------------------------------------------------------------------
+# SUBSCRIPTION_OFFER config contract
+# ---------------------------------------------------------------------------
+class TestSubscriptionOfferConfig(unittest.TestCase):
+    """
+    Pin the SUBSCRIPTION_OFFER config structure so accidental key removal or
+    type changes surface immediately as test failures rather than runtime errors
+    in the Streamlit UI.
+    """
+
+    def setUp(self):
+        from config import SUBSCRIPTION_OFFER
+        self.offer = SUBSCRIPTION_OFFER
+
+    # --- required keys ---
+
+    def test_has_tab_heading(self):
+        self.assertIn('tab_heading', self.offer)
+
+    def test_has_tab_tagline(self):
+        self.assertIn('tab_tagline', self.offer)
+
+    def test_has_features(self):
+        self.assertIn('features', self.offer)
+
+    def test_has_trial_days(self):
+        self.assertIn('trial_days', self.offer)
+
+    def test_has_trial_price_monthly(self):
+        self.assertIn('trial_price_monthly', self.offer)
+
+    def test_has_trial_caption(self):
+        self.assertIn('trial_caption', self.offer)
+
+    # --- type contracts ---
+
+    def test_tab_heading_is_non_empty_string(self):
+        self.assertIsInstance(self.offer['tab_heading'], str)
+        self.assertTrue(self.offer['tab_heading'].strip())
+
+    def test_tab_tagline_is_non_empty_string(self):
+        self.assertIsInstance(self.offer['tab_tagline'], str)
+        self.assertTrue(self.offer['tab_tagline'].strip())
+
+    def test_features_is_non_empty_list(self):
+        self.assertIsInstance(self.offer['features'], list)
+        self.assertGreater(len(self.offer['features']), 0)
+
+    def test_each_feature_is_non_empty_string(self):
+        for item in self.offer['features']:
+            self.assertIsInstance(item, str)
+            self.assertTrue(item.strip(), f"Empty feature entry: {item!r}")
+
+    def test_trial_days_matches_checkout_kwargs(self):
+        """trial_days in config must equal the hard-coded 14 in _build_checkout_kwargs."""
+        self.assertEqual(self.offer['trial_days'], 14)
+
+    def test_trial_price_monthly_contains_dollar_sign(self):
+        self.assertIn('$', self.offer['trial_price_monthly'])
+
+    # --- solo-agent launch copy: must NOT include multi-user collaboration ---
+
+    def test_features_do_not_mention_multi_user(self):
+        """Solo-agent offer should not advertise multi-user collaboration."""
+        joined = " ".join(self.offer['features']).lower()
+        self.assertNotIn('multi-user', joined)
+        self.assertNotIn('collaboration', joined)
+
+    def test_features_include_commission_tracking(self):
+        """Core solo-agent value proposition must be present."""
+        joined = " ".join(self.offer['features']).lower()
+        self.assertIn('commission', joined)
+
+    def test_features_include_reconciliation(self):
+        joined = " ".join(self.offer['features']).lower()
+        self.assertIn('reconcili', joined)
 
 
 if __name__ == '__main__':
