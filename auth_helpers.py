@@ -363,6 +363,36 @@ def show_login_form():
 #                 else:
 #                     st.error("Please fill in all fields")
 
+def _validate_legal_acceptance(agree_terms: bool, agree_privacy: bool):
+    """Return an error string if legal acceptance is incomplete, else None."""
+    if not agree_terms:
+        return "Please accept the Terms of Service to continue."
+    if not agree_privacy:
+        return "Please accept the Privacy Policy to continue."
+    return None
+
+
+def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url: str) -> dict:
+    """Return kwargs for stripe.checkout.Session.create (pure, no side-effects)."""
+    return dict(
+        line_items=[{'price': price_id, 'quantity': 1}],
+        mode='subscription',
+        customer_email=email,
+        subscription_data={'trial_period_days': 14},
+        metadata={
+            'accepted_terms': 'true',
+            'accepted_privacy': 'true',
+            'accepted_at': accepted_at,
+            'terms_version': '2024-12-06',
+            'privacy_version': '2024-12-06',
+        },
+        payment_method_collection='if_required',
+        success_url=app_url + '/?session_id={CHECKOUT_SESSION_ID}',
+        cancel_url=app_url,
+        allow_promotion_codes=True,
+    )
+
+
 def show_subscribe_tab():
     """Show subscription options."""
     # Left-aligned content, no centering columns
@@ -414,39 +444,22 @@ def show_subscribe_tab():
                 submit = st.form_submit_button("🚀 Start Free Trial", type="primary", use_container_width=True)
 
                 if submit:
-                    # Validate legal acceptance first
-                    if not agree_terms:
-                        st.error("Please accept the Terms of Service to continue.")
-                    elif not agree_privacy:
-                        st.error("Please accept the Privacy Policy to continue.")
+                    legal_error = _validate_legal_acceptance(agree_terms, agree_privacy)
+                    if legal_error:
+                        st.error(legal_error)
                     elif not email:
                         st.error("Please enter your email address to subscribe.")
                     else:
                         try:
                             accepted_at = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-                            # Create checkout session with 14-day free trial
-                            checkout_session = stripe.checkout.Session.create(
-                                line_items=[{
-                                    'price': os.getenv("STRIPE_PRICE_ID"),
-                                    'quantity': 1,
-                                }],
-                                mode='subscription',
-                                customer_email=email,
-                                subscription_data={
-                                    'trial_period_days': 14,  # 14-day free trial
-                                },
-                                metadata={
-                                    'accepted_terms': 'true',
-                                    'accepted_privacy': 'true',
-                                    'accepted_at': accepted_at,
-                                    'terms_version': '2024-12-06',
-                                    'privacy_version': '2024-12-06',
-                                },
-                                payment_method_collection='if_required',  # Allows 100% off promo codes to complete without entering a card
-                                success_url=os.getenv("RENDER_APP_URL", "https://commission-tracker-app.onrender.com") + "/?session_id={CHECKOUT_SESSION_ID}",
-                                cancel_url=os.getenv("RENDER_APP_URL", "https://commission-tracker-app.onrender.com"),
-                                allow_promotion_codes=True,  # Enable coupon code field in checkout
+                            app_url = os.getenv("RENDER_APP_URL", "https://commission-tracker-app.onrender.com")
+                            kwargs = _build_checkout_kwargs(
+                                email=email,
+                                accepted_at=accepted_at,
+                                price_id=os.getenv("STRIPE_PRICE_ID"),
+                                app_url=app_url,
                             )
+                            checkout_session = stripe.checkout.Session.create(**kwargs)
                             st.markdown(f'<meta http-equiv="refresh" content="0; url={checkout_session.url}">',
                                        unsafe_allow_html=True)
                             st.success("Redirecting to secure checkout...")
