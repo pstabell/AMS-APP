@@ -242,9 +242,9 @@ class TestGenerateSetupToken(unittest.TestCase):
         window used by password-reset tokens).  Compute the expiry the same
         way show_resend_setup_form does and assert it is >= 23 h 59 m away.
         """
-        from datetime import datetime, timedelta
-        expires_at = datetime.utcnow() + timedelta(hours=24)
-        min_expected = datetime.utcnow() + timedelta(hours=23, minutes=59)
+        from datetime import datetime, timedelta, timezone
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
+        min_expected = datetime.now(timezone.utc) + timedelta(hours=23, minutes=59)
         self.assertGreater(expires_at, min_expected)
 
 

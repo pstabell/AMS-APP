@@ -2,7 +2,7 @@
 import streamlit as st
 from supabase import Client
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 import secrets
 import string
 import time
@@ -486,7 +486,7 @@ def show_subscribe_tab():
                         st.error("Please enter your email address to subscribe.")
                     else:
                         try:
-                            accepted_at = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+                            accepted_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
                             app_url = os.getenv("RENDER_APP_URL", "https://commission-tracker-app.onrender.com")
                             kwargs = _build_checkout_kwargs(
                                 email=email,
@@ -549,8 +549,8 @@ def show_password_reset_form():
                             reset_token = generate_reset_token()
                             
                             # Store token in database (expires in 1 hour)
-                            from datetime import datetime, timedelta
-                            expires_at = (datetime.utcnow() + timedelta(hours=1)).isoformat()
+                            from datetime import timedelta
+                            expires_at = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
                             
                             token_data = {
                                 'email': email.lower(),  # Store lowercase to match users table
@@ -639,7 +639,7 @@ def show_resend_setup_form():
                                     # Generate fresh 24-hour setup token (mirrors webhook_server.py logic)
                                     from datetime import timedelta
                                     setup_token = generate_setup_token()
-                                    expires_at = (datetime.utcnow() + timedelta(hours=24)).isoformat()
+                                    expires_at = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
                                     token_data = {
                                         'email': user['email'],
                                         'token': setup_token,
