@@ -146,7 +146,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                   AMS-APP • {FLOOR_LABELS[currentFloor].name}
                 </p>
                 <div className="flex items-center gap-2">
-                  <h1 className="text-xl font-bold text-[var(--foreground)]">Dashboard</h1>
+                  <h1 className="text-xl font-bold text-[var(--foreground)]">{navLinks.find(l => l.href === "/dashboard" ? pathname === "/dashboard" : pathname === l.href || pathname.startsWith(`${l.href}/`))?.label ?? "Dashboard"}</h1>
                   <div className={`floor-badge ${currentFloor === 2 ? 'floor-badge-2' : 'floor-badge-1'}`}>
                     Floor {currentFloor}
                   </div>

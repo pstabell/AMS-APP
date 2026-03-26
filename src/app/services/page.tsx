@@ -331,7 +331,7 @@ export default function ServicesPage() {
             </div>
           </div>
           <div className="mt-8 border-t border-[var(--border-color)] pt-8 text-center text-xs text-[var(--foreground-muted)]">
-            <p>© 2025 Metro Point Technology LLC. All rights reserved.</p>
+            <p>© 2026 Metro Point Technology LLC. All rights reserved.</p>
             <p className="mt-1">Agent Commission Tracker™ is a trademark of Metro Point Technology LLC.</p>
           </div>
         </div>

@@ -256,7 +256,7 @@ export default function PolicyRevenueLedgerReportsPage() {
         <p className="text-xs text-[var(--foreground-muted)] mb-2">
           <a href="/terms" className="underline hover:text-[var(--accent-primary)] transition-colors">Terms of Service</a> |{' '}
           <a href="/privacy" className="underline hover:text-[var(--accent-primary)] transition-colors">Privacy Policy</a> |{' '}
-          © 2025 All rights reserved
+          © 2026 All rights reserved
         </p>
         <div className="flex items-center justify-center gap-2">
           <span className="text-sm">®</span>

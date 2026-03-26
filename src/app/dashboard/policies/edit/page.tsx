@@ -563,7 +563,7 @@ function EditPoliciesPageContent() {
                     />
                   </div>
 
-                  <div>
+                  <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-slate-700 mb-1">
                       Carrier
                     </label>
@@ -930,7 +930,7 @@ function EditPoliciesPageContent() {
             <span>·</span>
             <a href="/privacy" className="hover:text-slate-700">Privacy Policy</a>
           </div>
-          <p className="mt-2">© 2025 Metro Point Technology LLC. All rights reserved.</p>
+          <p className="mt-2">© 2026 Metro Point Technology LLC. All rights reserved.</p>
           <p className="mt-1">Agent Management System™ is a product of Metro Point Technology LLC.</p>
         </div>
       </footer>

@@ -866,7 +866,7 @@ export default function AccountPage() {
             <p className="font-bold text-[var(--accent-primary)]">{currentFloor === 2 ? "Agency" : "Agent"} Commission Tracker</p>
           </div>
           <p className="text-xs text-[var(--foreground-muted)]">
-            Powered by Metro Point Technology • © 2025 All rights reserved
+            Powered by Metro Point Technology • © 2026 All rights reserved
           </p>
         </div>
       </footer>

@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   try {
     const { data, error } = await supabase
       .from("policies")
-      .select("MGA Name")
+      .select("*")
       .eq("user_email", userEmail);
 
     if (error) {

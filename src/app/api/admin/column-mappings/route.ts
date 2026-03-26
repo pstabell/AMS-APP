@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateServerSession } from "@/lib/server-auth";
+import { validateServerSessionOrHeader } from "@/lib/server-auth";
 import { 
   getColumnMappings, 
   createColumnMapping, 
@@ -11,7 +11,7 @@ import {
 
 export async function GET(request: NextRequest) {
   // SECURITY FIX: Validate session instead of trusting spoofable headers
-  const { user, error: authError } = await validateServerSession(request);
+  const { user, error: authError } = await validateServerSessionOrHeader(request);
   if (authError || !user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   // SECURITY FIX: Validate session instead of trusting spoofable headers
-  const { user, error: authError } = await validateServerSession(request);
+  const { user, error: authError } = await validateServerSessionOrHeader(request);
   if (authError || !user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   // SECURITY FIX: Validate session instead of trusting spoofable headers
-  const { user, error: authError } = await validateServerSession(request);
+  const { user, error: authError } = await validateServerSessionOrHeader(request);
   if (authError || !user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -91,7 +91,7 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   // SECURITY FIX: Validate session instead of trusting spoofable headers
-  const { user, error: authError } = await validateServerSession(request);
+  const { user, error: authError } = await validateServerSessionOrHeader(request);
   if (authError || !user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

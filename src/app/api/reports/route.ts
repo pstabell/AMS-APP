@@ -45,10 +45,10 @@ export async function GET(request: Request) {
       .eq("user_email", emailFilter);
 
     if (dateFrom) {
-      query = query.gte("effective_date", dateFrom);
+      query = query.gte("Effective Date", dateFrom);
     }
     if (dateTo) {
-      query = query.lte("effective_date", dateTo);
+      query = query.lte("Effective Date", dateTo);
     }
     if (carrier) {
       query = query.eq("Carrier Name", carrier);

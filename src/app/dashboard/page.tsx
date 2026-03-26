@@ -379,7 +379,7 @@ export default function DashboardPage() {
             <p className="font-semibold text-[var(--foreground)]">{currentFloor === 2 ? "Agency" : "Agent"} Commission Tracker</p>
           </div>
           <p className="text-xs text-[var(--foreground-subtle)]">
-            Powered by Metro Point Technology • Copyright © 2025
+            Powered by Metro Point Technology • Copyright © 2026
           </p>
         </div>
       </footer>

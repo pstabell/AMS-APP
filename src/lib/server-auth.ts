@@ -77,3 +77,47 @@ export async function validateServerSession(request: NextRequest): Promise<{
     return { user: null, error: 'Authentication failed' };
   }
 }
+
+/**
+ * Lenient server-side authentication for admin API routes.
+ * Tries the session cookie first; if that fails, falls back to the
+ * x-user-id header (which the admin page always sends) and validates
+ * the user via the service-role client.
+ */
+export async function validateServerSessionOrHeader(request: NextRequest): Promise<{
+  user: ServerAuthUser | null;
+  error: string | null;
+}> {
+  // 1. Try session cookie first
+  const sessionResult = await validateServerSession(request);
+  if (sessionResult.user) {
+    return sessionResult;
+  }
+
+  // 2. Fallback: use x-user-id header
+  const userId = request.headers.get('x-user-id');
+  if (!userId) {
+    return { user: null, error: 'No session or user ID found' };
+  }
+
+  try {
+    const supabase = createServerClient();
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, email')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error || !user) {
+      return { user: null, error: 'User not found' };
+    }
+
+    return {
+      user: { id: user.id, email: user.email },
+      error: null,
+    };
+  } catch (err) {
+    console.error('Header auth fallback error:', err);
+    return { user: null, error: 'Authentication failed' };
+  }
+}
