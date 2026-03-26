@@ -463,14 +463,14 @@ export default function ContactsPage() {
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
-                <thead className="border-b border-[var(--border-color)] text-xs uppercase tracking-wide text-[var(--foreground-muted)]">
+                <thead className="bg-[var(--background-tertiary)] border-b-2 border-[var(--border-color-strong)] text-xs uppercase tracking-wide text-[var(--foreground-muted)]">
                   <tr>
-                    <th className="px-3 py-2">Name/Code</th>
-                    <th className="px-3 py-2">Contact</th>
-                    <th className="px-3 py-2">Phone</th>
-                    <th className="px-3 py-2">Email</th>
-                    <th className="px-3 py-2">Commission Stats</th>
-                    <th className="px-3 py-2">Actions</th>
+                    <th className="px-3 py-2.5 font-semibold">Name/Code</th>
+                    <th className="px-3 py-2.5 font-semibold">Contact</th>
+                    <th className="px-3 py-2.5 font-semibold">Phone</th>
+                    <th className="px-3 py-2.5 font-semibold">Email</th>
+                    <th className="px-3 py-2.5 font-semibold">Commission Stats</th>
+                    <th className="px-3 py-2.5 font-semibold">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -565,14 +565,14 @@ export default function ContactsPage() {
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
-                <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                <thead className="bg-[var(--background-tertiary)] border-b-2 border-[var(--border-color-strong)] text-xs uppercase tracking-wide text-[var(--foreground-muted)]">
                   <tr>
-                    <th className="px-3 py-2">Name</th>
-                    <th className="px-3 py-2">Contact</th>
-                    <th className="px-3 py-2">Phone</th>
-                    <th className="px-3 py-2">Email</th>
-                    <th className="px-3 py-2">Relationships</th>
-                    <th className="px-3 py-2">Actions</th>
+                    <th className="px-3 py-2.5 font-semibold">Name</th>
+                    <th className="px-3 py-2.5 font-semibold">Contact</th>
+                    <th className="px-3 py-2.5 font-semibold">Phone</th>
+                    <th className="px-3 py-2.5 font-semibold">Email</th>
+                    <th className="px-3 py-2.5 font-semibold">Relationships</th>
+                    <th className="px-3 py-2.5 font-semibold">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -658,13 +658,13 @@ export default function ContactsPage() {
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
-                <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                <thead className="bg-[var(--background-tertiary)] border-b-2 border-[var(--border-color-strong)] text-xs uppercase tracking-wide text-[var(--foreground-muted)]">
                   <tr>
-                    <th className="px-3 py-2">Name</th>
-                    <th className="px-3 py-2">Contact</th>
-                    <th className="px-3 py-2">Phone</th>
-                    <th className="px-3 py-2">Email</th>
-                    <th className="px-3 py-2">Actions</th>
+                    <th className="px-3 py-2.5 font-semibold">Name</th>
+                    <th className="px-3 py-2.5 font-semibold">Contact</th>
+                    <th className="px-3 py-2.5 font-semibold">Phone</th>
+                    <th className="px-3 py-2.5 font-semibold">Email</th>
+                    <th className="px-3 py-2.5 font-semibold">Actions</th>
                   </tr>
                 </thead>
                 <tbody>

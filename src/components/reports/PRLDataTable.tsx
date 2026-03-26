@@ -185,7 +185,7 @@ export default function PRLDataTable({
   const endRecord = Math.min(pagination.page * pagination.limit, pagination.total);
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+    <div className="rounded-lg border border-slate-300 bg-white shadow-sm">
       {/* Table Header */}
       <div className="border-b border-slate-200 px-6 py-4">
         <div className="flex items-center justify-between">
@@ -217,14 +217,14 @@ export default function PRLDataTable({
       {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead className="bg-slate-50">
+          <thead className="bg-slate-200">
             <tr>
               {visibleColumns.map(column => (
                 <th
                   key={column.key}
                   style={{ width: `${column.width}px`, minWidth: `${column.width}px` }}
-                  className={`border-b border-slate-200 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 ${
-                    onSort ? 'cursor-pointer hover:bg-slate-100' : ''
+                  className={`border-b-2 border-slate-300 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-700 ${
+                    onSort ? 'cursor-pointer hover:bg-slate-300' : ''
                   }`}
                   onClick={() => onSort && handleSort(column.key)}
                 >
@@ -261,7 +261,7 @@ export default function PRLDataTable({
                 {data.map((row, index) => (
                   <tr 
                     key={viewMode === 'detailed' ? (row as PRLTransaction).id : (row as PRLPolicy).policyNumber}
-                    className={`border-b border-slate-100 hover:bg-slate-50 ${
+                    className={`border-b border-slate-200 hover:bg-slate-50 ${
                       index % 2 === 0 ? 'bg-white' : 'bg-slate-25'
                     }`}
                   >

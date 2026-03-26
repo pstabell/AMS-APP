@@ -191,12 +191,12 @@ export default function PolicyRevenueLedgerReportsPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-[var(--border-color)]">
-                      <th className="text-left py-3 px-4 font-semibold text-[var(--foreground)]">Carrier</th>
-                      <th className="text-right py-3 px-4 font-semibold text-[var(--foreground)]">Policies</th>
-                      <th className="text-right py-3 px-4 font-semibold text-[var(--foreground)]">Premium</th>
-                      <th className="text-right py-3 px-4 font-semibold text-[var(--foreground)]">Agency Comm</th>
-                      <th className="text-right py-3 px-4 font-semibold text-[var(--foreground)]">Avg Comm %</th>
+                    <tr className="bg-[var(--background-tertiary)] border-b-2 border-[var(--border-color-strong)]">
+                      <th className="text-left py-3 px-4 font-semibold text-xs uppercase tracking-wider text-[var(--foreground-muted)]">Carrier</th>
+                      <th className="text-right py-3 px-4 font-semibold text-xs uppercase tracking-wider text-[var(--foreground-muted)]">Policies</th>
+                      <th className="text-right py-3 px-4 font-semibold text-xs uppercase tracking-wider text-[var(--foreground-muted)]">Premium</th>
+                      <th className="text-right py-3 px-4 font-semibold text-xs uppercase tracking-wider text-[var(--foreground-muted)]">Agency Comm</th>
+                      <th className="text-right py-3 px-4 font-semibold text-xs uppercase tracking-wider text-[var(--foreground-muted)]">Avg Comm %</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -224,11 +224,11 @@ export default function PolicyRevenueLedgerReportsPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-[var(--border-color)]">
-                      <th className="text-left py-3 px-4 font-semibold text-[var(--foreground)]">Month</th>
-                      <th className="text-right py-3 px-4 font-semibold text-[var(--foreground)]">Policies</th>
-                      <th className="text-right py-3 px-4 font-semibold text-[var(--foreground)]">Premium</th>
-                      <th className="text-right py-3 px-4 font-semibold text-[var(--foreground)]">Agency Comm</th>
+                    <tr className="bg-[var(--background-tertiary)] border-b-2 border-[var(--border-color-strong)]">
+                      <th className="text-left py-3 px-4 font-semibold text-xs uppercase tracking-wider text-[var(--foreground-muted)]">Month</th>
+                      <th className="text-right py-3 px-4 font-semibold text-xs uppercase tracking-wider text-[var(--foreground-muted)]">Policies</th>
+                      <th className="text-right py-3 px-4 font-semibold text-xs uppercase tracking-wider text-[var(--foreground-muted)]">Premium</th>
+                      <th className="text-right py-3 px-4 font-semibold text-xs uppercase tracking-wider text-[var(--foreground-muted)]">Agency Comm</th>
                     </tr>
                   </thead>
                   <tbody>

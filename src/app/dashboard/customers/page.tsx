@@ -152,18 +152,18 @@ export default function CustomersPage() {
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-lg overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-300 shadow-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-gradient-to-r from-blue-100 to-indigo-100 border-b-2 border-blue-300">
+            <thead className="bg-slate-200 border-b-2 border-slate-300">
               <tr>
-                <th className="px-4 py-3 font-bold text-slate-800">👤 Customer Name</th>
-                <th className="px-4 py-3 font-bold text-slate-800 text-center">📄 Policies</th>
-                <th className="px-4 py-3 font-bold text-slate-800 text-center">📋 Trans</th>
-                <th className="px-4 py-3 font-bold text-slate-800">🏢 Carriers</th>
-                <th className="px-4 py-3 font-bold text-slate-800 text-right">💰 Total Premium</th>
-                <th className="px-4 py-3 font-bold text-slate-800 text-right">💎 Agent Comm</th>
-                <th className="px-4 py-3 font-bold text-slate-800">📅 Latest Activity</th>
+                <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-slate-700">👤 Customer Name</th>
+                <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-slate-700 text-center">📄 Policies</th>
+                <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-slate-700 text-center">📋 Trans</th>
+                <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-slate-700">🏢 Carriers</th>
+                <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-slate-700 text-right">💰 Total Premium</th>
+                <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-slate-700 text-right">💎 Agent Comm</th>
+                <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-slate-700">📅 Latest Activity</th>
               </tr>
             </thead>
             <tbody>
@@ -189,7 +189,7 @@ export default function CustomersPage() {
                 customers.map((customer) => (
                   <tr
                     key={customer.id}
-                    className="border-b border-slate-100 hover:bg-blue-50 transition-colors cursor-pointer"
+                    className="border-b border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer"
                   >
                     <td className="px-4 py-3">
                       <Link

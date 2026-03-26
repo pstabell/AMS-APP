@@ -342,7 +342,7 @@ export default function PRLPage() {
       )}
 
       {/* Filters */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="rounded-xl border border-slate-300 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1">
             <label className="text-xs font-medium text-slate-600">From</label>
@@ -481,34 +481,34 @@ export default function PRLPage() {
       )}
 
       {/* Table */}
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="rounded-2xl border border-slate-300 bg-white shadow-sm">
         <div className="overflow-x-auto min-h-[400px]">
           {/* Mobile-friendly hint */}
-          <div className="md:hidden text-xs text-slate-500 p-3 border-b border-slate-100 bg-slate-50">
+          <div className="md:hidden text-xs text-slate-500 p-3 border-b border-slate-200 bg-slate-50">
             💡 Tip: Swipe left/right to view all columns
           </div>
           <table className="min-w-full text-left text-sm">
-            <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+            <thead className="bg-slate-200 border-b-2 border-slate-300 text-xs uppercase tracking-wide text-slate-700">
               <tr>
-                <th className="px-3 py-3">Customer</th>
-                <th className="px-3 py-3">Policy #</th>
-                <th className="px-3 py-3">Carrier</th>
-                <th className="px-3 py-3">Type</th>
-                <th className="px-3 py-3 text-right">Premium</th>
-                <th className="px-3 py-3 text-right">Gross %</th>
-                <th className="px-3 py-3 text-right">Agency Comm</th>
-                <th className="px-3 py-3 text-right">Rate</th>
-                <th className="px-3 py-3 text-right">Agent Comm</th>
-                <th className="px-3 py-3 text-right">Paid</th>
-                <th className="px-3 py-3 text-right">Balance</th>
-                <th className="px-3 py-3">Effective</th>
+                <th className="px-3 py-3 font-semibold">Customer</th>
+                <th className="px-3 py-3 font-semibold">Policy #</th>
+                <th className="px-3 py-3 font-semibold">Carrier</th>
+                <th className="px-3 py-3 font-semibold">Type</th>
+                <th className="px-3 py-3 text-right font-semibold">Premium</th>
+                <th className="px-3 py-3 text-right font-semibold">Gross %</th>
+                <th className="px-3 py-3 text-right font-semibold">Agency Comm</th>
+                <th className="px-3 py-3 text-right font-semibold">Rate</th>
+                <th className="px-3 py-3 text-right font-semibold">Agent Comm</th>
+                <th className="px-3 py-3 text-right font-semibold">Paid</th>
+                <th className="px-3 py-3 text-right font-semibold">Balance</th>
+                <th className="px-3 py-3 font-semibold">Effective</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 // Skeleton loading rows
                 Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i} className="border-b border-slate-100 animate-pulse">
+                  <tr key={i} className="border-b border-slate-200 animate-pulse">
                     <td className="px-3 py-3"><div className="h-4 bg-slate-200 rounded w-24"></div></td>
                     <td className="px-3 py-3"><div className="h-4 bg-slate-200 rounded w-20"></div></td>
                     <td className="px-3 py-3"><div className="h-4 bg-slate-200 rounded w-16"></div></td>
@@ -560,7 +560,7 @@ export default function PRLPage() {
                 policiesWithCalcs.map((policy) => (
                   <tr
                     key={policy.id}
-                    className="border-b border-slate-100 hover:bg-slate-50"
+                    className="border-b border-slate-200 hover:bg-slate-100"
                   >
                     <td className="px-3 py-3 font-medium text-slate-900">
                       <Link

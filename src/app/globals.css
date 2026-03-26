@@ -438,19 +438,19 @@ html.light {
   /* Core Backgrounds - Clean whites and soft grays */
   --background: #f8fafc;           /* Main background - slate-50 */
   --background-secondary: #ffffff; /* Cards, panels - white */
-  --background-tertiary: #f1f5f9;  /* Elevated surfaces - slate-100 */
+  --background-tertiary: #e2e8f0;  /* Elevated surfaces / table headers - slate-200 (stronger) */
   --background-elevated: #ffffff;  /* Modals, dropdowns */
-  
+
   /* Text Colors - High contrast for readability */
   --foreground: #0f172a;           /* Primary text - slate-900 */
-  --foreground-muted: #64748b;     /* Secondary text - slate-500 */
+  --foreground-muted: #475569;     /* Secondary text - slate-600 (slightly stronger) */
   --foreground-subtle: #94a3b8;    /* Tertiary/disabled text - slate-400 */
   --foreground-inverse: #ffffff;   /* Text on dark backgrounds */
-  
-  /* Borders & Surfaces - Light theme */
-  --border-color: rgba(0, 0, 0, 0.08);
-  --border-color-strong: rgba(0, 0, 0, 0.15);
-  --border-color-accent: rgba(20, 184, 166, 0.3);
+
+  /* Borders & Surfaces - Light theme (stronger) */
+  --border-color: rgba(0, 0, 0, 0.12);
+  --border-color-strong: rgba(0, 0, 0, 0.20);
+  --border-color-accent: rgba(20, 184, 166, 0.4);
   
   /* Shadows - Softer for light theme */
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -489,5 +489,133 @@ html.light * {
 /* Light theme Floor 2 overrides */
 html.light [data-floor="2"] {
   --shadow-glow: 0 0 20px rgba(139, 92, 246, 0.2);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Light Mode Polished Enhancements
+   Stronger borders, visible table headers, green accents
+   ═══════════════════════════════════════════════════════════════ */
+
+/* 1. TABLE HEADERS — stronger gray background in light mode */
+html.light .table-premium th,
+html.light .table-warm th {
+  background: #e2e8f0; /* slate-200 — clearly visible header bar */
+  color: #334155;      /* slate-700 — strong readable text */
+  border-bottom: 2px solid #cbd5e1; /* slate-300 */
+}
+
+/* DataTable component and manual thead rows in light mode */
+html.light thead tr[class*="bg-[var(--background-tertiary)]"],
+html.light thead tr.bg-\[var\(--background-tertiary\)\] {
+  background: #e2e8f0 !important; /* slate-200 */
+}
+
+html.light thead th {
+  color: #334155; /* slate-700 for all table headers in light mode */
+}
+
+/* 2. TABLE ROW BORDERS — visible separation between rows */
+html.light .table-premium td,
+html.light .table-warm td {
+  border-bottom: 1px solid #e2e8f0; /* slate-200 — visible row separator */
+}
+
+html.light tbody tr {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+html.light tbody tr:last-child {
+  border-bottom: none;
+}
+
+/* 3. STAT/METRIC CARDS — subtle visible borders in light mode */
+html.light .card {
+  border: 1px solid #cbd5e1; /* slate-300 — stronger card border */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+html.light .card:hover {
+  border-color: #94a3b8; /* slate-400 */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* 4. GREEN/TEAL ACCENT LINES — more prominent in light mode */
+html.light .gradient-accent {
+  background: linear-gradient(135deg, #0d9488, #14b8a6) !important;
+  opacity: 1;
+  box-shadow: 0 1px 4px rgba(20, 184, 166, 0.3);
+}
+
+html.light [data-floor="2"] .gradient-accent {
+  background: linear-gradient(135deg, #7c3aed, #8b5cf6) !important;
+  box-shadow: 0 1px 4px rgba(139, 92, 246, 0.3);
+}
+
+/* Sidebar active item — stronger accent border and glow */
+html.light .glow-accent {
+  box-shadow: 0 0 12px rgba(20, 184, 166, 0.35);
+}
+
+/* Floor badge — stronger in light mode */
+html.light .floor-badge-1 {
+  background: rgba(20, 184, 166, 0.15);
+  border-color: rgba(20, 184, 166, 0.5);
+}
+
+html.light .floor-badge-2 {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.5);
+}
+
+/* 5. GENERAL — content boundaries and sections */
+html.light .card-elevated {
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+html.light .card-accent {
+  border: 1px solid rgba(20, 184, 166, 0.4);
+  box-shadow: 0 0 12px rgba(20, 184, 166, 0.15);
+}
+
+/* Sidebar border and background in light mode */
+html.light aside[class*="border-r"] {
+  border-right-color: #cbd5e1 !important; /* slate-300 */
+}
+
+/* Header border in light mode */
+html.light header[class*="border-b"] {
+  border-bottom-color: #cbd5e1 !important;
+}
+
+/* Footer borders in light mode */
+html.light footer[class*="border-t"] {
+  border-top-color: #cbd5e1 !important;
+}
+
+/* Table wrapper containers — visible borders */
+html.light div[class*="border-[var(--border-color)]"][class*="rounded"] {
+  border-color: #cbd5e1;
+}
+
+/* Stronger hover on table rows in light mode */
+html.light .table-premium tbody tr:hover,
+html.light .table-warm tr:hover td {
+  background: #f1f5f9; /* slate-100 */
+}
+
+/* Pagination bar in light mode */
+html.light .table-premium .bg-\[var\(--background-tertiary\)\] {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+/* Button borders more visible in light mode */
+html.light .btn-secondary {
+  border-color: #cbd5e1;
+}
+
+html.light .btn-secondary:hover {
+  border-color: #14b8a6;
 }
 
