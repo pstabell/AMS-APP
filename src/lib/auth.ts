@@ -96,35 +96,20 @@ async function resolveAgencyContext(userId: string, email: string): Promise<{
   agent_id: string | null;
 }> {
   try {
-    // Look up active agent record for this user
-    const { data: agentRow, error } = await supabase
-      .from("agents")
-      .select("id, agency_id, role, is_active")
-      .eq("user_id", userId)
-      .eq("is_active", true)
-      .limit(1)
-      .maybeSingle();
-
-    if (error || !agentRow) {
-      // No agent record — solo agent (backward compatible)
-      return { role: "agent", agency_id: null, agency_name: null, agent_id: null };
+    // Use server-side API route to bypass RLS on agents/agencies tables
+    const response = await fetch(`/api/agency-context?user_id=${encodeURIComponent(userId)}`);
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        role: (data.role as UserRole) || "agent",
+        agency_id: data.agency_id,
+        agency_name: data.agency_name,
+        agent_id: data.agent_id,
+      };
     }
-
-    // Get agency name
-    const { data: agencyRow } = await supabase
-      .from("agencies")
-      .select("id, agency_name")
-      .eq("id", agentRow.agency_id)
-      .maybeSingle();
-
-    return {
-      role: (agentRow.role as UserRole) || "agent",
-      agency_id: agentRow.agency_id,
-      agency_name: agencyRow?.agency_name ?? null,
-      agent_id: agentRow.id,
-    };
+    return { role: "agent", agency_id: null, agency_name: null, agent_id: null };
   } catch {
-    // If agents table doesn't exist yet, fall back gracefully
+    // If API call fails, fall back gracefully
     return { role: "agent", agency_id: null, agency_name: null, agent_id: null };
   }
 }
