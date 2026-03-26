@@ -1,4 +1,13 @@
-import { supabase } from "./supabase";
+import { supabase, createServerClient } from "./supabase";
+
+// Use service role client for server-side reads to bypass RLS
+function getClient() {
+  try {
+    return createServerClient();
+  } catch {
+    return supabase;
+  }
+}
 
 // App-facing type (used by UI components)
 export type Carrier = {
@@ -65,7 +74,7 @@ function formatError(error: unknown) {
 }
 
 export async function getCarriers(userId: string) {
-  const { data, error } = await supabase
+  const { data, error } = await getClient()
     .from("carriers")
     .select("*")
     .eq("user_id", userId)
@@ -79,7 +88,7 @@ export async function getCarriers(userId: string) {
 }
 
 export async function getCarrier(id: string, userId: string) {
-  const { data, error } = await supabase
+  const { data, error } = await getClient()
     .from("carriers")
     .select("*")
     .eq("carrier_id", id)
@@ -97,7 +106,7 @@ export async function getCarrier(id: string, userId: string) {
 }
 
 export async function createCarrier(payload: CarrierCreateInput) {
-  const { data, error } = await supabase
+  const { data, error } = await getClient()
     .from("carriers")
     .insert({
       carrier_name: payload.name,
@@ -134,7 +143,7 @@ export async function updateCarrier(
   if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
   if (updates.active !== undefined) dbUpdates.status = updates.active ? "Active" : "Inactive";
 
-  const { data, error } = await supabase
+  const { data, error } = await getClient()
     .from("carriers")
     .update(dbUpdates)
     .eq("carrier_id", id)
@@ -150,7 +159,7 @@ export async function updateCarrier(
 }
 
 export async function deleteCarrier(id: string, userId: string) {
-  const { error } = await supabase
+  const { error } = await getClient()
     .from("carriers")
     .delete()
     .eq("carrier_id", id)

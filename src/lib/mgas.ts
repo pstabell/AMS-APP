@@ -1,4 +1,12 @@
-import { supabase } from "./supabase";
+import { supabase, createServerClient } from "./supabase";
+
+function getClient() {
+  try {
+    return createServerClient();
+  } catch {
+    return supabase;
+  }
+}
 
 // App-facing type (used by UI components)
 export type MGA = {
@@ -60,7 +68,7 @@ function formatError(error: unknown) {
 }
 
 export async function getMGAs(userId: string) {
-  const { data, error } = await supabase
+  const { data, error } = await getClient()
     .from("mgas")
     .select("*")
     .eq("user_id", userId)
@@ -74,7 +82,7 @@ export async function getMGAs(userId: string) {
 }
 
 export async function getMGA(id: string, userId: string) {
-  const { data, error } = await supabase
+  const { data, error } = await getClient()
     .from("mgas")
     .select("*")
     .eq("mga_id", id)
@@ -97,7 +105,7 @@ export async function createMGA(payload: MGACreateInput) {
   if (payload.contact_email) contactInfo.contact_email = payload.contact_email;
   if (payload.contact_phone) contactInfo.contact_phone = payload.contact_phone;
 
-  const { data, error } = await supabase
+  const { data, error } = await getClient()
     .from("mgas")
     .insert({
       mga_name: payload.name,
@@ -144,7 +152,7 @@ export async function updateMGA(id: string, userId: string, updates: MGAUpdateIn
     dbUpdates.contact_info = ci;
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await getClient()
     .from("mgas")
     .update(dbUpdates)
     .eq("mga_id", id)
@@ -160,7 +168,7 @@ export async function updateMGA(id: string, userId: string, updates: MGAUpdateIn
 }
 
 export async function deleteMGA(id: string, userId: string) {
-  const { error } = await supabase
+  const { error } = await getClient()
     .from("mgas")
     .delete()
     .eq("mga_id", id)
