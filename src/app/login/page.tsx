@@ -85,7 +85,7 @@ export default function LoginPage() {
         : "text-slate-500 border-transparent hover:text-slate-700"
     }`;
 
-  const inputStyle = "w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-100 placeholder:text-slate-400";
+  const inputStyle = "w-full rounded-lg border-2 border-[#1D4ED8] bg-white px-4 py-3 text-sm text-black outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-100 placeholder:text-slate-400";
   const orangeBtn = "flex w-full items-center justify-center rounded-lg bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60";
   const outlineBtn = "flex w-full items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50";
 
