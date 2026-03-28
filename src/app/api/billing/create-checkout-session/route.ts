@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { stripe, PLANS } from '@/lib/stripe';
+import { stripe, PLANS, type PlanKey } from '@/lib/stripe';
 import { createServerClient } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
   try {
-    const { email } = await request.json();
+    const { email, planKey } = await request.json();
 
     if (!email || typeof email !== 'string') {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
@@ -12,7 +12,12 @@ export async function POST(request: NextRequest) {
 
     const normalizedEmail = email.trim().toLowerCase();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3333';
-    const plan = PLANS.solo;
+    const selectedPlan = (planKey && planKey in PLANS) ? planKey as PlanKey : 'starter';
+    const plan = PLANS[selectedPlan];
+
+    if (!plan.priceId) {
+      return NextResponse.json({ error: 'This plan is not available yet. Please try another plan.' }, { status: 400 });
+    }
 
     // Check if user already exists in Supabase
     const supabase = createServerClient();

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createServerClient } from '@/lib/supabase';
+import { getPlanByPriceId } from '@/lib/stripe';
 
 // Initialize Stripe with secret key
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -125,14 +126,24 @@ async function handleSubscriptionEvent(subscription: Stripe.Subscription, status
       return;
     }
 
-    // Update subscription status
+    // Detect plan tier from subscription price
+    const priceId = subscription.items?.data?.[0]?.price?.id;
+    const planMatch = priceId ? getPlanByPriceId(priceId) : null;
+
+    // Update subscription status and plan
+    const updateData: Record<string, unknown> = {
+      subscription_status: status,
+      stripe_customer_id: customer.id,
+      stripe_subscription_id: subscription.id,
+      updated_at: new Date().toISOString(),
+    };
+    if (planMatch) {
+      updateData.subscription_plan = planMatch.key;
+    }
+
     const { error: updateError } = await supabase
       .from('users')
-      .update({
-        subscription_status: status,
-        stripe_customer_id: customer.id, // Ensure customer ID is saved for future lookups
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', user.id);
 
     if (updateError) {
