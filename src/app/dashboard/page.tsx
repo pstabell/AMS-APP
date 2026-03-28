@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import MetricCard from "@/components/MetricCard";
+import AIActionsWidget from "@/components/AIActionsWidget";
 import DataTable, { ColumnDef } from "@/components/DataTable";
 
 // Extended policy type with reconciliation status
@@ -324,6 +325,9 @@ export default function DashboardPage() {
           trend="up"
         />
       </div>
+
+      {/* AI Actions Widget */}
+      <AIActionsWidget />
 
       {/* Recent Policies Table */}
       <div className="space-y-4">

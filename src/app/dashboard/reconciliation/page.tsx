@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCurrency } from "@/lib/calculations";
 import { supabase } from "@/lib/supabase";
+import AIActionsWidget from "@/components/AIActionsWidget";
 
 type StatementRow = {
   id: string;
@@ -328,6 +329,62 @@ export default function ReconciliationPage() {
             Upload commission statements and match transactions
           </p>
         </div>
+      </div>
+
+      {/* AI Reconciliation Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="card-elevated rounded-xl p-4 border border-[var(--accent-primary)]/20">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-2 rounded-lg bg-gradient-to-br from-[var(--gold-primary)] to-[var(--gold-primary)] shadow-md">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+            </div>
+            <div>
+              <h3 className="font-bold text-[var(--foreground)]">AI Reconciliation</h3>
+              <p className="text-xs text-[var(--foreground-muted)]">Let AI match your statement to policies automatically</p>
+            </div>
+          </div>
+          <button
+            onClick={async () => {
+              if (uploadedRows.length === 0) {
+                setError("Upload a statement first, then run AI reconciliation.");
+                return;
+              }
+              setLoading(true);
+              setError(null);
+              try {
+                const res = await fetch("/api/ai/execute", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    action_type: "reconciliation",
+                    payload: { rowCount: uploadedRows.length, unmatchedCount: unmatchedRows },
+                  }),
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                  if (data.error === "plan_no_ai") {
+                    setError("AI reconciliation requires Agent Pro or higher. Visit the pricing page to upgrade.");
+                  } else if (data.error === "daily_limit_reached") {
+                    setError("You have used all your AI actions for today. Purchase additional actions from your account page.");
+                  } else {
+                    setError(data.message || "AI reconciliation failed.");
+                  }
+                } else {
+                  setSuccess("AI reconciliation completed. " + (data.result?.message || ""));
+                }
+              } catch {
+                setError("Network error running AI reconciliation.");
+              }
+              setLoading(false);
+            }}
+            disabled={loading || uploadedRows.length === 0}
+            className="w-full btn-gold flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+            {loading ? "Running..." : "Run AI Reconciliation"}
+          </button>
+        </div>
+        <AIActionsWidget />
       </div>
 
       {/* Upload Section */}
