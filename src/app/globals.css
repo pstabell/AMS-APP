@@ -140,6 +140,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-primary: #1e3a5f;
+  --color-primary-dark: #0f2340;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
