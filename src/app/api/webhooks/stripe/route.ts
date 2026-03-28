@@ -64,7 +64,15 @@ export async function POST(request: NextRequest) {
       case 'invoice.payment_failed':
         await handlePaymentFailed(event.data.object as Stripe.Invoice);
         break;
-      
+
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session;
+        if (session.mode === 'payment' && session.metadata?.type === 'action_bucket') {
+          await handleBucketPurchase(session);
+        }
+        break;
+      }
+
       default:
         console.log(`[Stripe Webhook] Unhandled event type: ${event.type}`);
     }
@@ -296,10 +304,52 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
     }
 
     console.log(`[Stripe Webhook] Payment failed - set subscription to past_due for user ${user.id} (${user.email})`);
-    
+
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(`[Stripe Webhook] Error in handlePaymentFailed:`, errorMessage);
+    throw error;
+  }
+}
+
+/**
+ * Handle AI action bucket purchase
+ */
+async function handleBucketPurchase(session: Stripe.Checkout.Session) {
+  try {
+    const userId = session.metadata?.user_id;
+    if (!userId) {
+      console.error('[Stripe Webhook] Bucket purchase missing user_id in metadata');
+      return;
+    }
+
+    console.log(`[Stripe Webhook] Processing bucket purchase for user ${userId}`);
+
+    const supabase = createServerClient();
+
+    // Calculate expiry: end of current billing cycle (or 30 days from now)
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30);
+
+    const { error } = await supabase
+      .from('ai_action_buckets')
+      .insert({
+        user_id: userId,
+        actions_total: 600,
+        actions_remaining: 600,
+        expires_at: expiresAt.toISOString(),
+        stripe_payment_intent_id: session.payment_intent as string,
+      });
+
+    if (error) {
+      console.error(`[Stripe Webhook] Error creating bucket for user ${userId}:`, error);
+      return;
+    }
+
+    console.log(`[Stripe Webhook] Credited 600 AI actions to user ${userId}, expires ${expiresAt.toISOString()}`);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`[Stripe Webhook] Error in handleBucketPurchase:`, errorMessage);
     throw error;
   }
 }
