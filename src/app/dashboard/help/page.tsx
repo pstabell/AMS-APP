@@ -225,6 +225,9 @@
           <span className="text-2xl">🏢</span>
           <p className="font-bold text-[var(--accent-primary)]">Metro Point Technology</p>
         </div>
+        <p className="text-xs text-[var(--foreground-muted)] mb-1">
+          📞 <a href="tel:+12394267058" className="hover:text-[var(--accent-primary)] transition-colors">(239) 426-7058</a> | ✉️ <a href="mailto:Support@MetroPointTech.com" className="hover:text-[var(--accent-primary)] transition-colors">Support@MetroPointTech.com</a>
+        </p>
         <p className="text-xs text-[var(--foreground-muted)] mb-2">
           <a href="/terms" className="underline hover:text-[var(--accent-primary)] transition-colors">Terms of Service</a> |{' '}
           <a href="/privacy" className="underline hover:text-[var(--accent-primary)] transition-colors">Privacy Policy</a> |{' '}
