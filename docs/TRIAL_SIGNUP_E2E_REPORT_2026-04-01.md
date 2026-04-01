@@ -18,8 +18,8 @@ python3 -m unittest test_checkout_flow.py test_webhook_subscription_status.py
 ```
 
 Result:
-- 147 tests ran
-- 147 tests passed
+- 152 tests ran
+- 152 tests passed
 
 Coverage confirmed by the existing regression suite includes:
 - Terms of Service and Privacy Policy acceptance required before checkout
@@ -32,6 +32,7 @@ Coverage confirmed by the existing regression suite includes:
 - Subscription status normalization and webhook fallback logic
 - Tier resolution from Stripe price IDs
 - Payment recovery webhook logic
+- Smoke-check readiness gate behavior for green and blocked deployment states via `test_trial_signup_smoke_check.py`
 
 ### 2. Checkout session contract
 Confirmed from live code in `auth_helpers.py` and direct invocation of `_build_checkout_kwargs(...)`:
