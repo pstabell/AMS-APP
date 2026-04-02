@@ -287,7 +287,9 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertIn("## Blocking reasons", markdown)
         self.assertIn("## Recommended next actions", markdown)
         self.assertIn("## Render restore checklist", markdown)
+        self.assertIn("## Render restore validation commands", markdown)
         self.assertIn("Open the Render dashboard for service commission-tracker-webhook.", markdown)
+        self.assertIn("curl -i https://commission-tracker-webhook.onrender.com/health", markdown)
         self.assertIn("Run one real Stripe test-mode signup", markdown)
         self.assertIn("- None", markdown)
 
@@ -308,7 +310,9 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertTrue(payload["summary"]["render_blueprint_ok"])
         self.assertEqual(payload["summary"]["missing_required_env_vars"], [])
         self.assertGreaterEqual(len(payload["summary"]["render_restore_checklist"]), 1)
+        self.assertGreaterEqual(len(payload["summary"]["render_restore_validation_commands"]), 3)
         self.assertIn("commission-tracker-webhook", payload["summary"]["render_restore_checklist"][0])
+        self.assertEqual(payload["summary"]["render_restore_validation_commands"][0], "curl -i https://commission-tracker-webhook.onrender.com/health")
 
     def test_main_can_write_json_and_markdown_outputs(self):
         report = self._build_ready_report()
@@ -408,6 +412,7 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertTrue(any("no-server" in reason.lower() for reason in payload["summary"]["blocking_reasons"]))
         self.assertTrue(any("missing stripe" in action.lower() or "missing stripe, resend, and supabase" in action.lower() for action in payload["summary"]["next_actions"]))
         self.assertTrue(any("x-render-routing=no-server" in step for step in payload["summary"]["render_restore_checklist"]))
+        self.assertTrue(any(command.startswith("export STRIPE_WEBHOOK_SECRET=...") for command in payload["summary"]["render_restore_validation_commands"]))
         self.assertFalse(payload["summary"]["ready_for_live_e2e"])
 
 

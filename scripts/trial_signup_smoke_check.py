@@ -410,7 +410,27 @@ def build_render_restore_checklist(report: dict[str, Any], missing_required: lis
     return checklist
 
 
-def build_blockers_and_actions(report: dict[str, Any], missing_required: list[str]) -> tuple[list[str], list[str], list[str]]:
+def build_render_restore_validation_commands(report: dict[str, Any], missing_required: list[str]) -> list[str]:
+    commands = [
+        f"curl -i {report['webhook_base_url'].rstrip('/')}/health",
+        "python3 scripts/trial_signup_smoke_check.py",
+    ]
+
+    if missing_required:
+        commands.append(
+            "export " + " ".join(f"{name}=..." for name in missing_required)
+        )
+
+    commands.append(
+        "python3 scripts/trial_signup_smoke_check.py --json-out docs/smoke-checks/latest-trial-signup-smoke-check.json --markdown-out docs/smoke-checks/latest-trial-signup-smoke-check.md"
+    )
+    commands.append(
+        "python3 -m unittest test_checkout_flow.py test_webhook_subscription_status.py test_trial_signup_smoke_check.py"
+    )
+    return commands
+
+
+def build_blockers_and_actions(report: dict[str, Any], missing_required: list[str]) -> tuple[list[str], list[str], list[str], list[str]]:
     blockers: list[str] = []
     actions: list[str] = []
 
@@ -463,7 +483,8 @@ def build_blockers_and_actions(report: dict[str, Any], missing_required: list[st
         actions.append("Run one real Stripe test-mode signup and capture the Stripe session and webhook timestamps.")
 
     render_restore_checklist = build_render_restore_checklist(report, missing_required)
-    return blockers, actions, render_restore_checklist
+    render_restore_validation_commands = build_render_restore_validation_commands(report, missing_required)
+    return blockers, actions, render_restore_checklist, render_restore_validation_commands
 
 
 def generate_report() -> dict[str, Any]:
@@ -491,7 +512,7 @@ def generate_report() -> dict[str, Any]:
     missing_required = [
         name for name, details in report["env"]["required_for_live_e2e"].items() if not details["present"]
     ]
-    blockers, next_actions, render_restore_checklist = build_blockers_and_actions(report, missing_required)
+    blockers, next_actions, render_restore_checklist, render_restore_validation_commands = build_blockers_and_actions(report, missing_required)
     report["summary"] = {
         "public_app_ok": report["public_checks"]["app"]["ok"],
         "public_webhook_ok": report["public_checks"]["webhook_health"]["ok"],
@@ -507,6 +528,7 @@ def generate_report() -> dict[str, Any]:
         "blocking_reasons": blockers,
         "next_actions": next_actions,
         "render_restore_checklist": render_restore_checklist,
+        "render_restore_validation_commands": render_restore_validation_commands,
         "ready_for_live_e2e": (
             report["public_checks"]["app"]["ok"]
             and report["public_checks"]["webhook_health"]["ok"]
@@ -574,6 +596,13 @@ def render_markdown_report(report: dict[str, Any]) -> str:
         ]
     )
     lines.extend(f"- {step}" for step in summary["render_restore_checklist"] or ["None"])
+    lines.extend(
+        [
+            "",
+            "## Render restore validation commands",
+        ]
+    )
+    lines.extend(f"- {command}" for command in summary["render_restore_validation_commands"] or ["None"])
     lines.extend(
         [
             "",

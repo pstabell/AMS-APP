@@ -134,13 +134,15 @@ It now also verifies the checked-in `render.yaml` blueprint itself, confirming b
 
 It now also emits a targeted `render_restore_checklist` in both JSON and Markdown output. That checklist names the exact Render service, expected hostname, checked-in start command, health check path, and the follow-up verification step so ops can restore the webhook runtime without reverse-engineering the repo first.
 
+It now also emits `render_restore_validation_commands` in both JSON and Markdown output. That gives ops a copy-paste validation sequence covering the public webhook probe, smoke-check rerun, secret loading, artifact refresh, and regression suite after the Render service is restored.
+
 ## Latest refresh
-- Added targeted Render restore checklist output to `scripts/trial_signup_smoke_check.py`
+- Added Render restore validation command output to `scripts/trial_signup_smoke_check.py`
 - Added regression coverage in `test_trial_signup_smoke_check.py`
 - Validation: `python3 -m unittest test_checkout_flow.py test_webhook_subscription_status.py test_trial_signup_smoke_check.py` passed 161/161
 - Fresh artifacts:
-  - `docs/smoke-checks/trial-signup-smoke-check-2026-04-02T1114ET.json`
-  - `docs/smoke-checks/trial-signup-smoke-check-2026-04-02T1114ET.md`
+  - `docs/smoke-checks/trial-signup-smoke-check-2026-04-02T1314ET.json`
+  - `docs/smoke-checks/trial-signup-smoke-check-2026-04-02T1314ET.md`
 - Current blocker remains unchanged in production: `https://commission-tracker-webhook.onrender.com` still returns `404 Not Found` with `x-render-routing: no-server`, which points at Render service/domain attachment rather than a missing Flask route in the repo.
 
 ## Conclusion
