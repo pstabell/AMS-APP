@@ -206,6 +206,53 @@ def check_local_webhook_route() -> dict[str, Any]:
         }
 
 
+def build_blockers_and_actions(report: dict[str, Any], missing_required: list[str]) -> tuple[list[str], list[str]]:
+    blockers: list[str] = []
+    actions: list[str] = []
+
+    if not report["public_checks"]["app"]["ok"]:
+        blockers.append(
+            f"Public app URL {report['app_url']} is not healthy: "
+            f"{report['public_checks']['app']['status']} {report['public_checks']['app']['reason']}"
+        )
+        actions.append("Restore the public Streamlit app before attempting a live signup test.")
+
+    if not report["public_checks"]["webhook_health"]["ok"]:
+        diagnostics = report["public_checks"]["webhook_diagnostics"]
+        blockers.append(
+            f"Public webhook health URL {report['webhook_health_url']} is not healthy: "
+            f"{report['public_checks']['webhook_health']['status']} {report['public_checks']['webhook_health']['reason']}"
+        )
+        blockers.append(diagnostics["likely_cause"])
+        if diagnostics["no_server"]:
+            actions.append(
+                "Render is signaling no-server for the webhook hostname; reattach or redeploy the webhook backend behind the expected domain."
+            )
+        elif diagnostics["all_404"]:
+            actions.append(
+                "Verify the webhook service routing and startup command so /health is served by webhook_server:app."
+            )
+        else:
+            actions.append("Inspect Render deploy/runtime logs for the webhook service and restore /health.")
+
+    if not report["local_checks"]["webhook_health_route"]["ok"]:
+        blockers.append("Local webhook /health verification failed in this workspace.")
+        actions.append("Fix the local webhook import/runtime issue before trusting deployment parity.")
+
+    if missing_required:
+        blockers.append(
+            "Required live E2E secrets are missing from this shell: " + ", ".join(missing_required)
+        )
+        actions.append(
+            "Load the missing Stripe, Resend, and Supabase service secrets into the verification shell before running a real checkout."
+        )
+
+    if not blockers:
+        actions.append("Run one real Stripe test-mode signup and capture the Stripe session and webhook timestamps.")
+
+    return blockers, actions
+
+
 def generate_report() -> dict[str, Any]:
     report = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -229,6 +276,7 @@ def generate_report() -> dict[str, Any]:
     missing_required = [
         name for name, details in report["env"]["required_for_live_e2e"].items() if not details["present"]
     ]
+    blockers, next_actions = build_blockers_and_actions(report, missing_required)
     report["summary"] = {
         "public_app_ok": report["public_checks"]["app"]["ok"],
         "public_webhook_ok": report["public_checks"]["webhook_health"]["ok"],
@@ -239,6 +287,8 @@ def generate_report() -> dict[str, Any]:
         "public_webhook_likely_cause": report["public_checks"]["webhook_diagnostics"]["likely_cause"],
         "local_webhook_ok": report["local_checks"]["webhook_health_route"]["ok"],
         "missing_required_env_vars": missing_required,
+        "blocking_reasons": blockers,
+        "next_actions": next_actions,
         "ready_for_live_e2e": (
             report["public_checks"]["app"]["ok"]
             and report["public_checks"]["webhook_health"]["ok"]
@@ -279,6 +329,20 @@ def render_markdown_report(report: dict[str, Any]) -> str:
         "## Missing required env vars",
     ]
     lines.extend(f"- {name}" for name in missing)
+    lines.extend(
+        [
+            "",
+            "## Blocking reasons",
+        ]
+    )
+    lines.extend(f"- {reason}" for reason in summary["blocking_reasons"] or ["None"])
+    lines.extend(
+        [
+            "",
+            "## Recommended next actions",
+        ]
+    )
+    lines.extend(f"- {action}" for action in summary["next_actions"] or ["None"])
     lines.extend(
         [
             "",

@@ -136,6 +136,9 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
         self.assertIn("Ready for live e2e: YES", markdown)
         self.assertIn("Webhook no-server detected: NO", markdown)
         self.assertIn("Any webhook endpoint OK: YES", markdown)
+        self.assertIn("## Blocking reasons", markdown)
+        self.assertIn("## Recommended next actions", markdown)
+        self.assertIn("Run one real Stripe test-mode signup", markdown)
         self.assertIn("- None", markdown)
 
     def test_main_returns_zero_when_stack_is_ready(self):
@@ -218,6 +221,9 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
         self.assertEqual(payload["summary"]["public_webhook_render_routing_modes"], ["no-server"])
         self.assertIn("no healthy backend service", payload["summary"]["public_webhook_likely_cause"].lower())
         self.assertEqual(payload["summary"]["missing_required_env_vars"], ["STRIPE_WEBHOOK_SECRET"])
+        self.assertGreaterEqual(len(payload["summary"]["blocking_reasons"]), 2)
+        self.assertTrue(any("no-server" in reason.lower() for reason in payload["summary"]["blocking_reasons"]))
+        self.assertTrue(any("missing stripe" in action.lower() or "missing stripe, resend, and supabase" in action.lower() for action in payload["summary"]["next_actions"]))
         self.assertFalse(payload["summary"]["ready_for_live_e2e"])
 
 

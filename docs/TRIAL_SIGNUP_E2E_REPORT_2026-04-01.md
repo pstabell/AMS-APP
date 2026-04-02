@@ -126,12 +126,19 @@ It now also supports `--json-out` and `--markdown-out` so each run can leave beh
 
 It now captures key response headers as part of the diagnostic snapshot, including Render routing fingerprints like `x-render-routing` and origin-server hints when present. That makes it easier to distinguish app-code failures from infrastructure states such as Render returning `no-server` before the request ever reaches Flask.
 
+It now also emits explicit `blocking_reasons` and `next_actions` in both JSON and Markdown output so operations gets a ready-to-forward remediation list instead of having to infer the next move from raw probe data.
+
 ## Conclusion
 Status: **Blocked for full live end-to-end confirmation**
 
 Reason:
-- Live webhook health endpoint returns 404
+- Live webhook health endpoint returns 404 and Render fingerprints the hostname with `x-render-routing: no-server`
+- Local webhook import verification is also blocked in this shell because `flask` and `stripe` are not installed
 - Required live Stripe/email secrets are not available in the current workspace session
 
+Latest artifact refresh:
+- `docs/smoke-checks/trial-signup-smoke-check-2026-04-02T0516ET.json`
+- `docs/smoke-checks/trial-signup-smoke-check-2026-04-02T0516ET.md`
+
 Automated coverage status: **Pass**
-Deployment/runtime validation status: **Blocked pending webhook restoration**
+Deployment/runtime validation status: **Blocked pending webhook restoration and a shell with webhook dependencies/secrets**
