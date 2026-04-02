@@ -94,6 +94,83 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
         self.assertIn("dependencies missing", details["payload"].lower())
         self.assertEqual(details["dependency_check"]["missing_modules"], ["stripe"])
 
+    def test_check_render_blueprint_reports_expected_services(self):
+        render_yaml = """
+services:
+  - type: web
+    name: commission-tracker-app
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run commission_app.py --server.port $PORT --server.address 0.0.0.0
+    healthCheckPath: /
+    envVars:
+      - key: APP_ENVIRONMENT
+      - key: PRODUCTION_SUPABASE_URL
+      - key: PRODUCTION_SUPABASE_ANON_KEY
+      - key: PRODUCTION_SUPABASE_SERVICE_KEY
+      - key: SUPABASE_URL
+      - key: SUPABASE_ANON_KEY
+      - key: SUPABASE_SERVICE_KEY
+      - key: STRIPE_SECRET_KEY
+      - key: STRIPE_PRICE_ID
+      - key: RESEND_API_KEY
+      - key: RENDER_APP_URL
+
+  - type: web
+    name: commission-tracker-webhook
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn webhook_server:app
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENVIRONMENT
+      - key: PRODUCTION_SUPABASE_URL
+      - key: PRODUCTION_SUPABASE_ANON_KEY
+      - key: PRODUCTION_SUPABASE_SERVICE_KEY
+      - key: SUPABASE_URL
+      - key: SUPABASE_ANON_KEY
+      - key: SUPABASE_SERVICE_KEY
+      - key: STRIPE_SECRET_KEY
+      - key: STRIPE_WEBHOOK_SECRET
+      - key: STRIPE_PRICE_ID
+      - key: RESEND_API_KEY
+      - key: SMTP_HOST
+      - key: SMTP_PORT
+      - key: SMTP_USER
+      - key: SMTP_PASS
+      - key: FROM_EMAIL
+      - key: RENDER_APP_URL
+"""
+        with mock.patch.object(pathlib.Path, "read_text", return_value=render_yaml):
+            details = smoke.check_render_blueprint()
+
+        self.assertTrue(details["ok"])
+        self.assertEqual(details["status"], 200)
+        self.assertEqual(details["payload"], "Render blueprint looks complete")
+        self.assertEqual(details["missing_services"], [])
+        self.assertTrue(details["services"]["commission-tracker-app"]["start_command_ok"])
+        self.assertTrue(details["services"]["commission-tracker-webhook"]["health_check_path_ok"])
+
+    def test_check_render_blueprint_reports_missing_requirements_cleanly(self):
+        render_yaml = """
+services:
+  - type: web
+    name: commission-tracker-webhook
+    startCommand: python webhook_server.py
+    healthCheckPath: /
+    envVars:
+      - key: STRIPE_SECRET_KEY
+"""
+        with mock.patch.object(pathlib.Path, "read_text", return_value=render_yaml):
+            details = smoke.check_render_blueprint()
+
+        self.assertFalse(details["ok"])
+        self.assertEqual(details["status"], 500)
+        self.assertIn("Missing Render service: commission-tracker-app", details["payload"])
+        self.assertIn("startCommand mismatch", details["payload"])
+        self.assertIn("healthCheckPath mismatch", details["payload"])
+        self.assertIn("missing env vars", details["payload"])
+
     def test_check_checkout_contract_reports_expected_stripe_contract(self):
         auth_helpers_source = """
 def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url: str) -> dict:
@@ -183,6 +260,16 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
                 "expected_trial_days": 14,
                 "price_id_source": "placeholder",
             },
+        ), mock.patch.object(
+            smoke,
+            "check_render_blueprint",
+            return_value={
+                "ok": True,
+                "status": 200,
+                "payload": "Render blueprint looks complete",
+                "services": {},
+                "missing_services": [],
+            },
         ):
             return smoke.generate_report()
 
@@ -196,6 +283,7 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertIn("Webhook no-server detected: NO", markdown)
         self.assertIn("Any webhook endpoint OK: YES", markdown)
         self.assertIn("Checkout contract OK: YES", markdown)
+        self.assertIn("Render blueprint OK: YES", markdown)
         self.assertIn("## Blocking reasons", markdown)
         self.assertIn("## Recommended next actions", markdown)
         self.assertIn("Run one real Stripe test-mode signup", markdown)
@@ -215,6 +303,7 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertFalse(payload["summary"]["public_webhook_all_probed_endpoints_404"])
         self.assertFalse(payload["summary"]["public_webhook_no_server"])
         self.assertTrue(payload["summary"]["checkout_contract_ok"])
+        self.assertTrue(payload["summary"]["render_blueprint_ok"])
         self.assertEqual(payload["summary"]["missing_required_env_vars"], [])
 
     def test_main_can_write_json_and_markdown_outputs(self):
@@ -286,6 +375,16 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
                 },
                 "expected_trial_days": 14,
                 "price_id_source": "placeholder",
+            },
+        ), mock.patch.object(
+            smoke,
+            "check_render_blueprint",
+            return_value={
+                "ok": True,
+                "status": 200,
+                "payload": "Render blueprint looks complete",
+                "services": {},
+                "missing_services": [],
             },
         ), mock.patch("sys.stdout") as stdout:
             exit_code = smoke.main([])

@@ -62,6 +62,49 @@ OPTIONAL_ENV_VARS = [
     "PRODUCTION_SUPABASE_SERVICE_KEY",
 ]
 
+RENDER_BLUEPRINT_SERVICES = {
+    "commission-tracker-app": {
+        "startCommand": "streamlit run commission_app.py --server.port $PORT --server.address 0.0.0.0",
+        "healthCheckPath": "/",
+        "required_env_vars": {
+            "APP_ENVIRONMENT",
+            "PRODUCTION_SUPABASE_URL",
+            "PRODUCTION_SUPABASE_ANON_KEY",
+            "PRODUCTION_SUPABASE_SERVICE_KEY",
+            "SUPABASE_URL",
+            "SUPABASE_ANON_KEY",
+            "SUPABASE_SERVICE_KEY",
+            "STRIPE_SECRET_KEY",
+            "STRIPE_PRICE_ID",
+            "RESEND_API_KEY",
+            "RENDER_APP_URL",
+        },
+    },
+    "commission-tracker-webhook": {
+        "startCommand": "gunicorn webhook_server:app",
+        "healthCheckPath": "/health",
+        "required_env_vars": {
+            "APP_ENVIRONMENT",
+            "PRODUCTION_SUPABASE_URL",
+            "PRODUCTION_SUPABASE_ANON_KEY",
+            "PRODUCTION_SUPABASE_SERVICE_KEY",
+            "SUPABASE_URL",
+            "SUPABASE_ANON_KEY",
+            "SUPABASE_SERVICE_KEY",
+            "STRIPE_SECRET_KEY",
+            "STRIPE_WEBHOOK_SECRET",
+            "STRIPE_PRICE_ID",
+            "RESEND_API_KEY",
+            "SMTP_HOST",
+            "SMTP_PORT",
+            "SMTP_USER",
+            "SMTP_PASS",
+            "FROM_EMAIL",
+            "RENDER_APP_URL",
+        },
+    },
+}
+
 
 def _extract_response_headers(response: Any) -> dict[str, str]:
     headers = getattr(response, "headers", {})
@@ -213,6 +256,73 @@ def check_local_webhook_route() -> dict[str, Any]:
         }
 
 
+def check_render_blueprint() -> dict[str, Any]:
+    try:
+        render_yaml = (ROOT / "render.yaml").read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return {
+            "ok": False,
+            "status": None,
+            "payload": "render.yaml is missing",
+            "services": {},
+        }
+
+    discovered_services: dict[str, dict[str, Any]] = {}
+    service_matches = list(
+        re.finditer(
+            r"- type:\s*web\s+name:\s*(?P<name>[^\n]+)(?P<body>.*?)(?=\n\s*- type:\s*web\s+name:|\Z)",
+            render_yaml,
+            re.DOTALL,
+        )
+    )
+
+    for match in service_matches:
+        name = match.group("name").strip()
+        body = match.group("body")
+        start_command_match = re.search(r"startCommand:\s*(.+)", body)
+        health_path_match = re.search(r"healthCheckPath:\s*(.+)", body)
+        env_keys = set(re.findall(r"- key:\s*([^\n]+)", body))
+        expected = RENDER_BLUEPRINT_SERVICES.get(name)
+        missing_env = sorted(expected["required_env_vars"] - env_keys) if expected else []
+        discovered_services[name] = {
+            "present": True,
+            "start_command": start_command_match.group(1).strip() if start_command_match else None,
+            "health_check_path": health_path_match.group(1).strip() if health_path_match else None,
+            "env_vars": sorted(env_keys),
+            "missing_required_env_vars": missing_env,
+            "start_command_ok": bool(expected and start_command_match and start_command_match.group(1).strip() == expected["startCommand"]),
+            "health_check_path_ok": bool(expected and health_path_match and health_path_match.group(1).strip() == expected["healthCheckPath"]),
+        }
+
+    missing_services = sorted(set(RENDER_BLUEPRINT_SERVICES) - set(discovered_services))
+    problems: list[str] = []
+    for service_name, expected in RENDER_BLUEPRINT_SERVICES.items():
+        service = discovered_services.get(service_name)
+        if not service:
+            problems.append(f"Missing Render service: {service_name}")
+            continue
+        if not service["start_command_ok"]:
+            problems.append(
+                f"{service_name} startCommand mismatch: expected {expected['startCommand']}, found {service['start_command']}"
+            )
+        if not service["health_check_path_ok"]:
+            problems.append(
+                f"{service_name} healthCheckPath mismatch: expected {expected['healthCheckPath']}, found {service['health_check_path']}"
+            )
+        if service["missing_required_env_vars"]:
+            problems.append(
+                f"{service_name} missing env vars: {', '.join(service['missing_required_env_vars'])}"
+            )
+
+    return {
+        "ok": not problems,
+        "status": 200 if not problems else 500,
+        "payload": "Render blueprint looks complete" if not problems else "; ".join(problems),
+        "services": discovered_services,
+        "missing_services": missing_services,
+    }
+
+
 def check_checkout_contract() -> dict[str, Any]:
     try:
         from config import SUBSCRIPTION_OFFER
@@ -305,6 +415,10 @@ def build_blockers_and_actions(report: dict[str, Any], missing_required: list[st
         blockers.append("Local checkout contract verification failed in this workspace.")
         actions.append("Fix the checkout session contract so trial signup still uses the expected Stripe subscription settings.")
 
+    if not report["local_checks"]["render_blueprint"]["ok"]:
+        blockers.append("Checked-in Render blueprint verification failed in this workspace.")
+        actions.append("Fix render.yaml so both app and webhook services declare the expected commands, health checks, and env vars.")
+
     if missing_required:
         blockers.append(
             "Required live E2E secrets are missing from this shell: " + ", ".join(missing_required)
@@ -337,6 +451,7 @@ def generate_report() -> dict[str, Any]:
         "local_checks": {
             "webhook_health_route": check_local_webhook_route(),
             "checkout_contract": check_checkout_contract(),
+            "render_blueprint": check_render_blueprint(),
         },
     }
 
@@ -354,6 +469,7 @@ def generate_report() -> dict[str, Any]:
         "public_webhook_likely_cause": report["public_checks"]["webhook_diagnostics"]["likely_cause"],
         "local_webhook_ok": report["local_checks"]["webhook_health_route"]["ok"],
         "checkout_contract_ok": report["local_checks"]["checkout_contract"]["ok"],
+        "render_blueprint_ok": report["local_checks"]["render_blueprint"]["ok"],
         "missing_required_env_vars": missing_required,
         "blocking_reasons": blockers,
         "next_actions": next_actions,
@@ -362,6 +478,7 @@ def generate_report() -> dict[str, Any]:
             and report["public_checks"]["webhook_health"]["ok"]
             and report["local_checks"]["webhook_health_route"]["ok"]
             and report["local_checks"]["checkout_contract"]["ok"]
+            and report["local_checks"]["render_blueprint"]["ok"]
             and not missing_required
         ),
     }
@@ -396,6 +513,8 @@ def render_markdown_report(report: dict[str, Any]) -> str:
         f"- Local webhook payload: {report['local_checks']['webhook_health_route']['payload']}",
         f"- Checkout contract OK: {'YES' if summary['checkout_contract_ok'] else 'NO'}",
         f"- Checkout contract payload: {report['local_checks']['checkout_contract']['payload']}",
+        f"- Render blueprint OK: {'YES' if summary['render_blueprint_ok'] else 'NO'}",
+        f"- Render blueprint payload: {report['local_checks']['render_blueprint']['payload']}",
         "",
         "## Missing required env vars",
     ]

@@ -130,6 +130,8 @@ It now also emits explicit `blocking_reasons` and `next_actions` in both JSON an
 
 It now also statically verifies the checked-in Stripe checkout contract in `auth_helpers.py` without needing Streamlit to import locally, so each smoke-check run confirms the solo-agent flow still uses subscription mode, a 14-day trial, `payment_method_collection='if_required'`, promotion codes enabled, the expected success and cancel URLs, and the legal-acceptance metadata keys.
 
+It now also verifies the checked-in `render.yaml` blueprint itself, confirming both Render services are declared with the expected start commands, health check paths, and required environment variable keys. That separates repo-side deploy configuration drift from the still-live external Render routing failure.
+
 ## Conclusion
 Status: **Blocked for full live end-to-end confirmation**
 
@@ -139,8 +141,8 @@ Reason:
 - Required live Stripe/email secrets are not available in the current workspace session
 
 Latest artifact refresh:
-- `docs/smoke-checks/trial-signup-smoke-check-2026-04-02T0714ET.json`
-- `docs/smoke-checks/trial-signup-smoke-check-2026-04-02T0714ET.md`
+- `docs/smoke-checks/trial-signup-smoke-check-2026-04-02T0914ET.json`
+- `docs/smoke-checks/trial-signup-smoke-check-2026-04-02T0914ET.md`
 
 Automated coverage status: **Pass**
 Deployment/runtime validation status: **Blocked pending webhook restoration and a shell with webhook dependencies/secrets**
