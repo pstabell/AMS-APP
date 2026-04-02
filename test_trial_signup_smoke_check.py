@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import pathlib
+import tempfile
 import unittest
 from unittest import mock
 
@@ -74,7 +75,7 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
         self.assertIn("dependencies missing", details["payload"].lower())
         self.assertEqual(details["dependency_check"]["missing_modules"], ["stripe"])
 
-    def test_main_returns_zero_when_stack_is_ready(self):
+    def _build_ready_report(self):
         env_values = {name: {"present": True, "length": 10} for name in smoke.LIVE_E2E_ENV_VARS}
         optional_values = {name: {"present": False, "length": 0} for name in smoke.OPTIONAL_ENV_VARS}
 
@@ -87,6 +88,7 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
             return_value={
                 "base_url": "https://commission-tracker-webhook.onrender.com",
                 "probed_endpoints": {
+                    "https://commission-tracker-webhook.onrender.com/": {"ok": True, "status": 200, "reason": "OK", "body_preview": "root ok"},
                     "https://commission-tracker-webhook.onrender.com/health": {"ok": True, "status": 200, "reason": "OK", "body_preview": "healthy"},
                 },
                 "any_ok": True,
@@ -101,8 +103,24 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
             smoke,
             "check_local_webhook_route",
             return_value={"ok": True, "status": 200, "payload": {"status": "ok"}, "dependency_check": {"ok": True, "missing_modules": []}},
-        ), mock.patch("sys.stdout") as stdout:
-            exit_code = smoke.main()
+        ):
+            return smoke.generate_report()
+
+    def test_render_markdown_report_includes_readiness_summary(self):
+        report = self._build_ready_report()
+
+        markdown = smoke.render_markdown_report(report)
+
+        self.assertIn("# Trial Signup Smoke Check Snapshot", markdown)
+        self.assertIn("Ready for live e2e: YES", markdown)
+        self.assertIn("Any webhook endpoint OK: YES", markdown)
+        self.assertIn("- None", markdown)
+
+    def test_main_returns_zero_when_stack_is_ready(self):
+        report = self._build_ready_report()
+
+        with mock.patch.object(smoke, "generate_report", return_value=report), mock.patch("sys.stdout") as stdout:
+            exit_code = smoke.main([])
 
         self.assertEqual(exit_code, 0)
         written = "".join(call.args[0] for call in stdout.write.call_args_list)
@@ -111,6 +129,22 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
         self.assertTrue(payload["summary"]["public_webhook_any_endpoint_ok"])
         self.assertFalse(payload["summary"]["public_webhook_all_probed_endpoints_404"])
         self.assertEqual(payload["summary"]["missing_required_env_vars"], [])
+
+    def test_main_can_write_json_and_markdown_outputs(self):
+        report = self._build_ready_report()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            json_path = pathlib.Path(temp_dir) / "report.json"
+            markdown_path = pathlib.Path(temp_dir) / "report.md"
+
+            with mock.patch.object(smoke, "generate_report", return_value=report), mock.patch("sys.stdout"):
+                exit_code = smoke.main(["--json-out", str(json_path), "--markdown-out", str(markdown_path)])
+
+            self.assertEqual(exit_code, 0)
+            self.assertTrue(json_path.exists())
+            self.assertTrue(markdown_path.exists())
+            self.assertTrue(json.loads(json_path.read_text())["summary"]["ready_for_live_e2e"])
+            self.assertIn("Trial Signup Smoke Check Snapshot", markdown_path.read_text())
 
     def test_main_returns_one_when_public_webhook_or_env_is_missing(self):
         required = {
@@ -147,7 +181,7 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
             "check_local_webhook_route",
             return_value={"ok": True, "status": 200, "payload": {"status": "ok"}, "dependency_check": {"ok": True, "missing_modules": []}},
         ), mock.patch("sys.stdout") as stdout:
-            exit_code = smoke.main()
+            exit_code = smoke.main([])
 
         self.assertEqual(exit_code, 1)
         written = "".join(call.args[0] for call in stdout.write.call_args_list)

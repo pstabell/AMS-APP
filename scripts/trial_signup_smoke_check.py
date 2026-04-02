@@ -15,11 +15,13 @@ Checks performed:
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -175,8 +177,9 @@ def check_local_webhook_route() -> dict[str, Any]:
         }
 
 
-def main() -> int:
+def generate_report() -> dict[str, Any]:
     report = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "app_url": APP_URL,
         "webhook_health_url": WEBHOOK_URL,
         "webhook_base_url": WEBHOOK_BASE_URL,
@@ -212,8 +215,66 @@ def main() -> int:
             and not missing_required
         ),
     }
+    return report
 
-    print(json.dumps(report, indent=2, sort_keys=True))
+
+def render_markdown_report(report: dict[str, Any]) -> str:
+    summary = report["summary"]
+    diagnostics = report["public_checks"]["webhook_diagnostics"]
+    root_probe = diagnostics["probed_endpoints"].get(f"{report['webhook_base_url'].rstrip('/')}/", {})
+    health_probe = diagnostics["probed_endpoints"].get(report["webhook_health_url"], report["public_checks"]["webhook_health"])
+    missing = summary["missing_required_env_vars"] or ["None"]
+
+    lines = [
+        "# Trial Signup Smoke Check Snapshot",
+        "",
+        f"Generated at: {report['generated_at']}",
+        f"Ready for live e2e: {'YES' if summary['ready_for_live_e2e'] else 'NO'}",
+        "",
+        "## Public checks",
+        f"- App URL: {report['app_url']} -> {report['public_checks']['app']['status']} {report['public_checks']['app']['reason']}",
+        f"- Webhook health: {report['webhook_health_url']} -> {report['public_checks']['webhook_health']['status']} {report['public_checks']['webhook_health']['reason']}",
+        f"- Webhook root: {report['webhook_base_url'].rstrip('/') + '/'} -> {root_probe.get('status')} {root_probe.get('reason')}",
+        f"- Any webhook endpoint OK: {'YES' if summary['public_webhook_any_endpoint_ok'] else 'NO'}",
+        f"- All probed webhook endpoints 404: {'YES' if summary['public_webhook_all_probed_endpoints_404'] else 'NO'}",
+        f"- Likely webhook cause: {summary['public_webhook_likely_cause']}",
+        "",
+        "## Local checks",
+        f"- Local webhook route OK: {'YES' if summary['local_webhook_ok'] else 'NO'}",
+        f"- Local webhook payload: {report['local_checks']['webhook_health_route']['payload']}",
+        "",
+        "## Missing required env vars",
+    ]
+    lines.extend(f"- {name}" for name in missing)
+    lines.extend(
+        [
+            "",
+            "## Probe previews",
+            f"- Webhook health preview: {health_probe.get('body_preview', '')}",
+            f"- Webhook root preview: {root_probe.get('body_preview', '')}",
+        ]
+    )
+    return "\n".join(lines) + "\n"
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Smoke-check the AMS-APP trial signup stack.")
+    parser.add_argument("--json-out", help="Optional path to write the JSON report.")
+    parser.add_argument("--markdown-out", help="Optional path to write a Markdown summary report.")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    report = generate_report()
+    payload = json.dumps(report, indent=2, sort_keys=True)
+    print(payload)
+
+    if args.json_out:
+        Path(args.json_out).write_text(payload + "\n", encoding="utf-8")
+    if args.markdown_out:
+        Path(args.markdown_out).write_text(render_markdown_report(report), encoding="utf-8")
+
     return 0 if report["summary"]["ready_for_live_e2e"] else 1
 
 

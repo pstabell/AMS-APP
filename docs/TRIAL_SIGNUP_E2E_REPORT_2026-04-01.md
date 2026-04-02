@@ -120,6 +120,8 @@ It reports:
 
 The script exits non-zero until the stack is genuinely ready for a live signup test, so it can also be reused in CI or a deployment shell as a fast gate.
 
+It now also supports `--json-out` and `--markdown-out` so each run can leave behind a machine-readable snapshot plus a clean handoff note for operations after a Render change.
+
 ## Conclusion
 Status: **Blocked for full live end-to-end confirmation**
 
