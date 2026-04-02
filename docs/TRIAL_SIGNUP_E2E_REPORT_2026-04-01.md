@@ -132,6 +132,17 @@ It now also statically verifies the checked-in Stripe checkout contract in `auth
 
 It now also verifies the checked-in `render.yaml` blueprint itself, confirming both Render services are declared with the expected start commands, health check paths, and required environment variable keys. That separates repo-side deploy configuration drift from the still-live external Render routing failure.
 
+It now also emits a targeted `render_restore_checklist` in both JSON and Markdown output. That checklist names the exact Render service, expected hostname, checked-in start command, health check path, and the follow-up verification step so ops can restore the webhook runtime without reverse-engineering the repo first.
+
+## Latest refresh
+- Added targeted Render restore checklist output to `scripts/trial_signup_smoke_check.py`
+- Added regression coverage in `test_trial_signup_smoke_check.py`
+- Validation: `python3 -m unittest test_checkout_flow.py test_webhook_subscription_status.py test_trial_signup_smoke_check.py` passed 161/161
+- Fresh artifacts:
+  - `docs/smoke-checks/trial-signup-smoke-check-2026-04-02T1114ET.json`
+  - `docs/smoke-checks/trial-signup-smoke-check-2026-04-02T1114ET.md`
+- Current blocker remains unchanged in production: `https://commission-tracker-webhook.onrender.com` still returns `404 Not Found` with `x-render-routing: no-server`, which points at Render service/domain attachment rather than a missing Flask route in the repo.
+
 ## Conclusion
 Status: **Blocked for full live end-to-end confirmation**
 

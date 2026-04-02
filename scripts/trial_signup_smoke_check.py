@@ -378,7 +378,39 @@ def check_checkout_contract() -> dict[str, Any]:
         }
 
 
-def build_blockers_and_actions(report: dict[str, Any], missing_required: list[str]) -> tuple[list[str], list[str]]:
+def build_render_restore_checklist(report: dict[str, Any], missing_required: list[str]) -> list[str]:
+    diagnostics = report["public_checks"]["webhook_diagnostics"]
+    webhook_service = report["local_checks"]["render_blueprint"]["services"].get("commission-tracker-webhook", {})
+
+    checklist = [
+        "Open the Render dashboard for service commission-tracker-webhook.",
+        f"Confirm the service is attached to {report['webhook_base_url']} and not left on a stale or missing domain binding.",
+        f"Confirm the deployed start command is `{webhook_service.get('start_command') or 'gunicorn webhook_server:app'}`.",
+        f"Confirm the health check path is `{webhook_service.get('health_check_path') or '/health'}`.",
+        "Trigger a manual deploy or blueprint sync if the service is missing, suspended, or attached to the wrong branch.",
+        "Watch deploy logs until the service reports a healthy instance and the custom onrender.com hostname is bound.",
+        f"Re-run python3 scripts/trial_signup_smoke_check.py against {report['webhook_base_url']} and confirm /health no longer returns x-render-routing=no-server.",
+    ]
+
+    if diagnostics["no_server"]:
+        checklist.insert(
+            2,
+            "Render is currently reporting x-render-routing=no-server, so prioritize service/domain attachment before reviewing Flask routes.",
+        )
+
+    if missing_required:
+        checklist.append(
+            "After routing is restored, load the missing live secrets in the verification shell before running a real Stripe test signup: "
+            + ", ".join(missing_required)
+        )
+
+    checklist.append(
+        "When the smoke check turns green, run one real Stripe test-mode signup and capture the session ID, webhook timestamp, and onboarding email evidence."
+    )
+    return checklist
+
+
+def build_blockers_and_actions(report: dict[str, Any], missing_required: list[str]) -> tuple[list[str], list[str], list[str]]:
     blockers: list[str] = []
     actions: list[str] = []
 
@@ -430,7 +462,8 @@ def build_blockers_and_actions(report: dict[str, Any], missing_required: list[st
     if not blockers:
         actions.append("Run one real Stripe test-mode signup and capture the Stripe session and webhook timestamps.")
 
-    return blockers, actions
+    render_restore_checklist = build_render_restore_checklist(report, missing_required)
+    return blockers, actions, render_restore_checklist
 
 
 def generate_report() -> dict[str, Any]:
@@ -458,7 +491,7 @@ def generate_report() -> dict[str, Any]:
     missing_required = [
         name for name, details in report["env"]["required_for_live_e2e"].items() if not details["present"]
     ]
-    blockers, next_actions = build_blockers_and_actions(report, missing_required)
+    blockers, next_actions, render_restore_checklist = build_blockers_and_actions(report, missing_required)
     report["summary"] = {
         "public_app_ok": report["public_checks"]["app"]["ok"],
         "public_webhook_ok": report["public_checks"]["webhook_health"]["ok"],
@@ -473,6 +506,7 @@ def generate_report() -> dict[str, Any]:
         "missing_required_env_vars": missing_required,
         "blocking_reasons": blockers,
         "next_actions": next_actions,
+        "render_restore_checklist": render_restore_checklist,
         "ready_for_live_e2e": (
             report["public_checks"]["app"]["ok"]
             and report["public_checks"]["webhook_health"]["ok"]
@@ -533,6 +567,13 @@ def render_markdown_report(report: dict[str, Any]) -> str:
         ]
     )
     lines.extend(f"- {action}" for action in summary["next_actions"] or ["None"])
+    lines.extend(
+        [
+            "",
+            "## Render restore checklist",
+        ]
+    )
+    lines.extend(f"- {step}" for step in summary["render_restore_checklist"] or ["None"])
     lines.extend(
         [
             "",

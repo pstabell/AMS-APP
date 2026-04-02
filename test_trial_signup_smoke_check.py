@@ -286,6 +286,8 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertIn("Render blueprint OK: YES", markdown)
         self.assertIn("## Blocking reasons", markdown)
         self.assertIn("## Recommended next actions", markdown)
+        self.assertIn("## Render restore checklist", markdown)
+        self.assertIn("Open the Render dashboard for service commission-tracker-webhook.", markdown)
         self.assertIn("Run one real Stripe test-mode signup", markdown)
         self.assertIn("- None", markdown)
 
@@ -305,6 +307,8 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertTrue(payload["summary"]["checkout_contract_ok"])
         self.assertTrue(payload["summary"]["render_blueprint_ok"])
         self.assertEqual(payload["summary"]["missing_required_env_vars"], [])
+        self.assertGreaterEqual(len(payload["summary"]["render_restore_checklist"]), 1)
+        self.assertIn("commission-tracker-webhook", payload["summary"]["render_restore_checklist"][0])
 
     def test_main_can_write_json_and_markdown_outputs(self):
         report = self._build_ready_report()
@@ -403,6 +407,7 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertGreaterEqual(len(payload["summary"]["blocking_reasons"]), 2)
         self.assertTrue(any("no-server" in reason.lower() for reason in payload["summary"]["blocking_reasons"]))
         self.assertTrue(any("missing stripe" in action.lower() or "missing stripe, resend, and supabase" in action.lower() for action in payload["summary"]["next_actions"]))
+        self.assertTrue(any("x-render-routing=no-server" in step for step in payload["summary"]["render_restore_checklist"]))
         self.assertFalse(payload["summary"]["ready_for_live_e2e"])
 
 
