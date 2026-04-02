@@ -58,16 +58,20 @@ Result:
 
 ## Blockers / Breaks Found
 
-### 1. Live webhook endpoint is not reachable at the documented URL
+### 1. Live webhook service appears misconfigured at the public Render URL
 Checked:
+- `https://commission-tracker-webhook.onrender.com/`
 - `https://commission-tracker-webhook.onrender.com/health`
+- `https://commission-tracker-webhook.onrender.com/test`
+- `https://commission-tracker-webhook.onrender.com/stripe-webhook`
 
 Result:
-- Returns HTTP 404 `Not Found`
+- All four probed endpoints return HTTP 404 `Not Found`
 
 Impact:
-- I could not verify the deployed provisioning webhook health endpoint.
-- A real Stripe checkout cannot be trusted to provision an account and trigger onboarding email until the live webhook service is reachable.
+- This is stronger evidence than a single missing `/health` route.
+- The likely issue is Render serving the wrong app, the wrong root/service wiring, or a deployment that is not actually running `gunicorn webhook_server:app`.
+- A real Stripe checkout cannot be trusted to provision an account and trigger onboarding email until the live webhook service is restored at the expected public URL.
 
 ### 2. Local workspace does not have the secrets needed for a real external end-to-end purchase test
 Missing in the current shell:
@@ -110,6 +114,7 @@ A lightweight smoke-check helper now lives at `scripts/trial_signup_smoke_check.
 It reports:
 - Public app reachability
 - Public webhook health reachability
+- Multi-endpoint webhook diagnostics across `/`, `/health`, `/test`, and `/stripe-webhook`
 - Local Flask `/health` route status from `webhook_server.py`
 - Presence of the core env vars needed for a true live end-to-end trial test
 

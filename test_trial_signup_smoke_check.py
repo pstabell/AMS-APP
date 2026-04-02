@@ -11,6 +11,36 @@ spec.loader.exec_module(smoke)
 
 
 class TrialSignupSmokeCheckTests(unittest.TestCase):
+    def test_build_webhook_diagnostic_urls_expands_expected_paths(self):
+        urls = smoke.build_webhook_diagnostic_urls("https://commission-tracker-webhook.onrender.com")
+
+        self.assertEqual(
+            urls,
+            [
+                "https://commission-tracker-webhook.onrender.com/",
+                "https://commission-tracker-webhook.onrender.com/health",
+                "https://commission-tracker-webhook.onrender.com/test",
+                "https://commission-tracker-webhook.onrender.com/stripe-webhook",
+            ],
+        )
+
+    def test_diagnose_public_webhook_flags_all_404_as_misconfiguration_signal(self):
+        with mock.patch.object(
+            smoke,
+            "fetch_url",
+            side_effect=[
+                {"ok": False, "status": 404, "reason": "Not Found", "body_preview": "missing"},
+                {"ok": False, "status": 404, "reason": "Not Found", "body_preview": "missing"},
+                {"ok": False, "status": 404, "reason": "Not Found", "body_preview": "missing"},
+                {"ok": False, "status": 404, "reason": "Not Found", "body_preview": "missing"},
+            ],
+        ):
+            details = smoke.diagnose_public_webhook("https://commission-tracker-webhook.onrender.com")
+
+        self.assertFalse(details["any_ok"])
+        self.assertTrue(details["all_404"])
+        self.assertIn("wrong app", details["likely_cause"].lower())
+
     def test_inspect_env_var_reports_presence_and_length(self):
         with mock.patch.dict(smoke.os.environ, {"STRIPE_SECRET_KEY": "secret-value"}, clear=True):
             details = smoke.inspect_env_var("STRIPE_SECRET_KEY")
@@ -53,6 +83,18 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
             {"ok": True, "status": 200, "reason": "OK", "body_preview": "webhook ok"},
         ]), mock.patch.object(
             smoke,
+            "diagnose_public_webhook",
+            return_value={
+                "base_url": "https://commission-tracker-webhook.onrender.com",
+                "probed_endpoints": {
+                    "https://commission-tracker-webhook.onrender.com/health": {"ok": True, "status": 200, "reason": "OK", "body_preview": "healthy"},
+                },
+                "any_ok": True,
+                "all_404": False,
+                "likely_cause": "Webhook service is reachable; the configured health URL may be wrong.",
+            },
+        ), mock.patch.object(
+            smoke,
             "inspect_env_var",
             side_effect=lambda name: env_values[name] if name in env_values else optional_values[name],
         ), mock.patch.object(
@@ -66,6 +108,8 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
         written = "".join(call.args[0] for call in stdout.write.call_args_list)
         payload = json.loads(written)
         self.assertTrue(payload["summary"]["ready_for_live_e2e"])
+        self.assertTrue(payload["summary"]["public_webhook_any_endpoint_ok"])
+        self.assertFalse(payload["summary"]["public_webhook_all_probed_endpoints_404"])
         self.assertEqual(payload["summary"]["missing_required_env_vars"], [])
 
     def test_main_returns_one_when_public_webhook_or_env_is_missing(self):
@@ -83,6 +127,19 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
             {"ok": False, "status": 404, "reason": "Not Found", "body_preview": "missing"},
         ]), mock.patch.object(
             smoke,
+            "diagnose_public_webhook",
+            return_value={
+                "base_url": "https://commission-tracker-webhook.onrender.com",
+                "probed_endpoints": {
+                    "https://commission-tracker-webhook.onrender.com/": {"ok": False, "status": 404, "reason": "Not Found", "body_preview": "missing"},
+                    "https://commission-tracker-webhook.onrender.com/health": {"ok": False, "status": 404, "reason": "Not Found", "body_preview": "missing"},
+                },
+                "any_ok": False,
+                "all_404": True,
+                "likely_cause": "All probed webhook endpoints returned 404. The Render service is likely misrouted, pointing at the wrong app, or not using webhook_server:app.",
+            },
+        ), mock.patch.object(
+            smoke,
             "inspect_env_var",
             side_effect=lambda name: required[name] if name in required else optional_values[name],
         ), mock.patch.object(
@@ -96,6 +153,9 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
         written = "".join(call.args[0] for call in stdout.write.call_args_list)
         payload = json.loads(written)
         self.assertFalse(payload["summary"]["public_webhook_ok"])
+        self.assertFalse(payload["summary"]["public_webhook_any_endpoint_ok"])
+        self.assertTrue(payload["summary"]["public_webhook_all_probed_endpoints_404"])
+        self.assertIn("wrong app", payload["summary"]["public_webhook_likely_cause"].lower())
         self.assertEqual(payload["summary"]["missing_required_env_vars"], ["STRIPE_WEBHOOK_SECRET"])
         self.assertFalse(payload["summary"]["ready_for_live_e2e"])
 
