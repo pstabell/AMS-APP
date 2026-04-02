@@ -94,6 +94,24 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
         self.assertIn("dependencies missing", details["payload"].lower())
         self.assertEqual(details["dependency_check"]["missing_modules"], ["stripe"])
 
+    def test_build_local_webhook_dependency_commands_uses_missing_modules(self):
+        report = {
+            "local_checks": {
+                "webhook_health_route": {
+                    "dependency_check": {
+                        "missing_modules": ["flask", "stripe"],
+                    }
+                }
+            }
+        }
+
+        commands = smoke.build_local_webhook_dependency_commands(report)
+
+        self.assertEqual(commands[0], "python3 -m pip install flask stripe")
+        self.assertEqual(commands[1], "python3 -m pip install -r requirements.txt")
+        self.assertIn("from webhook_server import app", commands[2])
+        self.assertIn("client.get('/health')", commands[2])
+
     def test_check_render_blueprint_reports_expected_services(self):
         render_yaml = """
 services:
@@ -354,6 +372,7 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertIn("## Recommended next actions", markdown)
         self.assertIn("## Render restore checklist", markdown)
         self.assertIn("## Render restore validation commands", markdown)
+        self.assertIn("## Local webhook dependency commands", markdown)
         self.assertIn("Open the Render dashboard for service commission-tracker-webhook.", markdown)
         self.assertIn("curl -i https://commission-tracker-webhook.onrender.com/health", markdown)
         self.assertIn("Run one real Stripe test-mode signup", markdown)
@@ -491,6 +510,7 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertTrue(any("missing stripe" in action.lower() or "missing stripe, resend, and supabase" in action.lower() for action in payload["summary"]["next_actions"]))
         self.assertTrue(any("x-render-routing=no-server" in step for step in payload["summary"]["render_restore_checklist"]))
         self.assertTrue(any(command.startswith("export STRIPE_WEBHOOK_SECRET=...") for command in payload["summary"]["render_restore_validation_commands"]))
+        self.assertEqual(payload["summary"]["local_webhook_dependency_commands"], [])
         self.assertFalse(payload["summary"]["ready_for_live_e2e"])
 
 

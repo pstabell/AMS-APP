@@ -498,7 +498,21 @@ def build_render_restore_validation_commands(report: dict[str, Any], missing_req
     return commands
 
 
-def build_blockers_and_actions(report: dict[str, Any], missing_required: list[str]) -> tuple[list[str], list[str], list[str], list[str]]:
+def build_local_webhook_dependency_commands(report: dict[str, Any]) -> list[str]:
+    dependency_check = report["local_checks"]["webhook_health_route"].get("dependency_check", {})
+    missing_modules = dependency_check.get("missing_modules", [])
+    if not missing_modules:
+        return []
+
+    install_targets = " ".join(missing_modules)
+    return [
+        f"python3 -m pip install {install_targets}",
+        "python3 -m pip install -r requirements.txt",
+        "python3 - <<'PY'\nfrom webhook_server import app\nclient = app.test_client()\nresp = client.get('/health')\nprint(resp.status_code)\nprint(resp.get_json(silent=True))\nPY",
+    ]
+
+
+def build_blockers_and_actions(report: dict[str, Any], missing_required: list[str]) -> tuple[list[str], list[str], list[str], list[str], list[str]]:
     blockers: list[str] = []
     actions: list[str] = []
 
@@ -527,9 +541,18 @@ def build_blockers_and_actions(report: dict[str, Any], missing_required: list[st
         else:
             actions.append("Inspect Render deploy/runtime logs for the webhook service and restore /health.")
 
+
+    local_webhook_dependency_commands = build_local_webhook_dependency_commands(report)
     if not report["local_checks"]["webhook_health_route"]["ok"]:
         blockers.append("Local webhook /health verification failed in this workspace.")
-        actions.append("Fix the local webhook import/runtime issue before trusting deployment parity.")
+        missing_modules = report["local_checks"]["webhook_health_route"].get("dependency_check", {}).get("missing_modules", [])
+        if missing_modules:
+            actions.append(
+                "Install the missing local webhook verification dependencies and re-run the /health import check: "
+                + ", ".join(missing_modules)
+            )
+        else:
+            actions.append("Fix the local webhook import/runtime issue before trusting deployment parity.")
 
     if not report["local_checks"]["checkout_contract"]["ok"]:
         blockers.append("Local checkout contract verification failed in this workspace.")
@@ -556,7 +579,7 @@ def build_blockers_and_actions(report: dict[str, Any], missing_required: list[st
 
     render_restore_checklist = build_render_restore_checklist(report, missing_required)
     render_restore_validation_commands = build_render_restore_validation_commands(report, missing_required)
-    return blockers, actions, render_restore_checklist, render_restore_validation_commands
+    return blockers, actions, render_restore_checklist, render_restore_validation_commands, local_webhook_dependency_commands
 
 
 def generate_report() -> dict[str, Any]:
@@ -585,7 +608,7 @@ def generate_report() -> dict[str, Any]:
     missing_required = [
         name for name, details in report["env"]["required_for_live_e2e"].items() if not details["present"]
     ]
-    blockers, next_actions, render_restore_checklist, render_restore_validation_commands = build_blockers_and_actions(report, missing_required)
+    blockers, next_actions, render_restore_checklist, render_restore_validation_commands, local_webhook_dependency_commands = build_blockers_and_actions(report, missing_required)
     report["summary"] = {
         "public_app_ok": report["public_checks"]["app"]["ok"],
         "public_webhook_ok": report["public_checks"]["webhook_health"]["ok"],
@@ -603,6 +626,7 @@ def generate_report() -> dict[str, Any]:
         "next_actions": next_actions,
         "render_restore_checklist": render_restore_checklist,
         "render_restore_validation_commands": render_restore_validation_commands,
+        "local_webhook_dependency_commands": local_webhook_dependency_commands,
         "ready_for_live_e2e": (
             report["public_checks"]["app"]["ok"]
             and report["public_checks"]["webhook_health"]["ok"]
@@ -680,6 +704,13 @@ def render_markdown_report(report: dict[str, Any]) -> str:
         ]
     )
     lines.extend(f"- {command}" for command in summary["render_restore_validation_commands"] or ["None"])
+    lines.extend(
+        [
+            "",
+            "## Local webhook dependency commands",
+        ]
+    )
+    lines.extend(f"- {command}" for command in summary["local_webhook_dependency_commands"] or ["None"])
     lines.extend(
         [
             "",
