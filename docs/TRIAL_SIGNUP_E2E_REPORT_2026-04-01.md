@@ -67,10 +67,12 @@ Checked:
 
 Result:
 - All four probed endpoints return HTTP 404 `Not Found`
+- Every probed webhook response also includes the header `x-render-routing: no-server`
 
 Impact:
 - This is stronger evidence than a single missing `/health` route.
-- The likely issue is Render serving the wrong app, the wrong root/service wiring, or a deployment that is not actually running `gunicorn webhook_server:app`.
+- The live hostname is not just missing one endpoint; Render is explicitly signaling that no healthy backend server is attached to that route.
+- The likely issue is Render service wiring, missing deployment attachment to the custom hostname, or a webhook service that is not currently standing up behind `commission-tracker-webhook.onrender.com`.
 - A real Stripe checkout cannot be trusted to provision an account and trigger onboarding email until the live webhook service is restored at the expected public URL.
 
 ### 2. Local workspace does not have the secrets needed for a real external end-to-end purchase test
@@ -121,6 +123,8 @@ It reports:
 The script exits non-zero until the stack is genuinely ready for a live signup test, so it can also be reused in CI or a deployment shell as a fast gate.
 
 It now also supports `--json-out` and `--markdown-out` so each run can leave behind a machine-readable snapshot plus a clean handoff note for operations after a Render change.
+
+It now captures key response headers as part of the diagnostic snapshot, including Render routing fingerprints like `x-render-routing` and origin-server hints when present. That makes it easier to distinguish app-code failures from infrastructure states such as Render returning `no-server` before the request ever reaches Flask.
 
 ## Conclusion
 Status: **Blocked for full live end-to-end confirmation**

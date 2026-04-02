@@ -56,6 +56,16 @@ OPTIONAL_ENV_VARS = [
 ]
 
 
+def _extract_response_headers(response: Any) -> dict[str, str]:
+    headers = getattr(response, "headers", {})
+    extracted = {}
+    for key in ("x-render-routing", "x-render-origin-server", "server", "content-type"):
+        value = headers.get(key)
+        if value:
+            extracted[key] = value
+    return extracted
+
+
 def fetch_url(url: str, timeout: int = 15) -> dict[str, Any]:
     request = urllib.request.Request(
         url,
@@ -72,6 +82,7 @@ def fetch_url(url: str, timeout: int = 15) -> dict[str, Any]:
                 "status": response.status,
                 "reason": getattr(response, "reason", "OK"),
                 "body_preview": body,
+                "headers": _extract_response_headers(response),
             }
     except urllib.error.HTTPError as exc:
         body = exc.read(512).decode("utf-8", errors="replace")
@@ -80,6 +91,7 @@ def fetch_url(url: str, timeout: int = 15) -> dict[str, Any]:
             "status": exc.code,
             "reason": exc.reason,
             "body_preview": body,
+            "headers": _extract_response_headers(exc),
         }
     except Exception as exc:  # pragma: no cover - defensive failure reporting
         return {
@@ -87,6 +99,7 @@ def fetch_url(url: str, timeout: int = 15) -> dict[str, Any]:
             "status": None,
             "reason": type(exc).__name__,
             "body_preview": str(exc),
+            "headers": {},
         }
 
 
@@ -110,9 +123,23 @@ def diagnose_public_webhook(base_url: str) -> dict[str, Any]:
     any_ok = any(result["ok"] for result in endpoints.values())
     statuses = [result["status"] for result in endpoints.values() if result["status"] is not None]
     all_404 = bool(statuses) and all(status == 404 for status in statuses)
+    render_routing_modes = sorted(
+        {
+            result.get("headers", {}).get("x-render-routing")
+            for result in endpoints.values()
+            if result.get("headers", {}).get("x-render-routing")
+        }
+    )
+    no_server = "no-server" in render_routing_modes
 
     if any_ok:
         likely_cause = "Webhook service is reachable; the configured health URL may be wrong."
+    elif no_server:
+        likely_cause = (
+            "Render is reporting x-render-routing=no-server for the webhook hostname. "
+            "That usually means there is no healthy backend service attached to this route yet "
+            "or the service is not deployed behind the expected domain."
+        )
     elif all_404:
         likely_cause = (
             "All probed webhook endpoints returned 404. The Render service is likely misrouted, "
@@ -126,6 +153,8 @@ def diagnose_public_webhook(base_url: str) -> dict[str, Any]:
         "probed_endpoints": endpoints,
         "any_ok": any_ok,
         "all_404": all_404,
+        "render_routing_modes": render_routing_modes,
+        "no_server": no_server,
         "likely_cause": likely_cause,
     }
 
@@ -205,6 +234,8 @@ def generate_report() -> dict[str, Any]:
         "public_webhook_ok": report["public_checks"]["webhook_health"]["ok"],
         "public_webhook_any_endpoint_ok": report["public_checks"]["webhook_diagnostics"]["any_ok"],
         "public_webhook_all_probed_endpoints_404": report["public_checks"]["webhook_diagnostics"]["all_404"],
+        "public_webhook_render_routing_modes": report["public_checks"]["webhook_diagnostics"]["render_routing_modes"],
+        "public_webhook_no_server": report["public_checks"]["webhook_diagnostics"]["no_server"],
         "public_webhook_likely_cause": report["public_checks"]["webhook_diagnostics"]["likely_cause"],
         "local_webhook_ok": report["local_checks"]["webhook_health_route"]["ok"],
         "missing_required_env_vars": missing_required,
@@ -235,6 +266,8 @@ def render_markdown_report(report: dict[str, Any]) -> str:
         f"- App URL: {report['app_url']} -> {report['public_checks']['app']['status']} {report['public_checks']['app']['reason']}",
         f"- Webhook health: {report['webhook_health_url']} -> {report['public_checks']['webhook_health']['status']} {report['public_checks']['webhook_health']['reason']}",
         f"- Webhook root: {report['webhook_base_url'].rstrip('/') + '/'} -> {root_probe.get('status')} {root_probe.get('reason')}",
+        f"- Webhook Render routing modes: {', '.join(summary['public_webhook_render_routing_modes']) if summary['public_webhook_render_routing_modes'] else 'None captured'}",
+        f"- Webhook no-server detected: {'YES' if summary['public_webhook_no_server'] else 'NO'}",
         f"- Any webhook endpoint OK: {'YES' if summary['public_webhook_any_endpoint_ok'] else 'NO'}",
         f"- All probed webhook endpoints 404: {'YES' if summary['public_webhook_all_probed_endpoints_404'] else 'NO'}",
         f"- Likely webhook cause: {summary['public_webhook_likely_cause']}",

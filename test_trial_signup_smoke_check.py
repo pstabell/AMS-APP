@@ -30,17 +30,36 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
             smoke,
             "fetch_url",
             side_effect=[
-                {"ok": False, "status": 404, "reason": "Not Found", "body_preview": "missing"},
-                {"ok": False, "status": 404, "reason": "Not Found", "body_preview": "missing"},
-                {"ok": False, "status": 404, "reason": "Not Found", "body_preview": "missing"},
-                {"ok": False, "status": 404, "reason": "Not Found", "body_preview": "missing"},
+                {"ok": False, "status": 404, "reason": "Not Found", "body_preview": "missing", "headers": {}},
+                {"ok": False, "status": 404, "reason": "Not Found", "body_preview": "missing", "headers": {}},
+                {"ok": False, "status": 404, "reason": "Not Found", "body_preview": "missing", "headers": {}},
+                {"ok": False, "status": 404, "reason": "Not Found", "body_preview": "missing", "headers": {}},
             ],
         ):
             details = smoke.diagnose_public_webhook("https://commission-tracker-webhook.onrender.com")
 
         self.assertFalse(details["any_ok"])
         self.assertTrue(details["all_404"])
+        self.assertFalse(details["no_server"])
         self.assertIn("wrong app", details["likely_cause"].lower())
+
+    def test_diagnose_public_webhook_flags_render_no_server_as_primary_cause(self):
+        with mock.patch.object(
+            smoke,
+            "fetch_url",
+            side_effect=[
+                {"ok": False, "status": 404, "reason": "Not Found", "body_preview": "missing", "headers": {"x-render-routing": "no-server"}},
+                {"ok": False, "status": 404, "reason": "Not Found", "body_preview": "missing", "headers": {"x-render-routing": "no-server"}},
+                {"ok": False, "status": 404, "reason": "Not Found", "body_preview": "missing", "headers": {"x-render-routing": "no-server"}},
+                {"ok": False, "status": 404, "reason": "Not Found", "body_preview": "missing", "headers": {"x-render-routing": "no-server"}},
+            ],
+        ):
+            details = smoke.diagnose_public_webhook("https://commission-tracker-webhook.onrender.com")
+
+        self.assertTrue(details["all_404"])
+        self.assertTrue(details["no_server"])
+        self.assertEqual(details["render_routing_modes"], ["no-server"])
+        self.assertIn("no healthy backend service", details["likely_cause"].lower())
 
     def test_inspect_env_var_reports_presence_and_length(self):
         with mock.patch.dict(smoke.os.environ, {"STRIPE_SECRET_KEY": "secret-value"}, clear=True):
@@ -88,11 +107,13 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
             return_value={
                 "base_url": "https://commission-tracker-webhook.onrender.com",
                 "probed_endpoints": {
-                    "https://commission-tracker-webhook.onrender.com/": {"ok": True, "status": 200, "reason": "OK", "body_preview": "root ok"},
-                    "https://commission-tracker-webhook.onrender.com/health": {"ok": True, "status": 200, "reason": "OK", "body_preview": "healthy"},
+                    "https://commission-tracker-webhook.onrender.com/": {"ok": True, "status": 200, "reason": "OK", "body_preview": "root ok", "headers": {"x-render-origin-server": "gunicorn"}},
+                    "https://commission-tracker-webhook.onrender.com/health": {"ok": True, "status": 200, "reason": "OK", "body_preview": "healthy", "headers": {"x-render-origin-server": "gunicorn"}},
                 },
                 "any_ok": True,
                 "all_404": False,
+                "render_routing_modes": [],
+                "no_server": False,
                 "likely_cause": "Webhook service is reachable; the configured health URL may be wrong.",
             },
         ), mock.patch.object(
@@ -113,6 +134,7 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
 
         self.assertIn("# Trial Signup Smoke Check Snapshot", markdown)
         self.assertIn("Ready for live e2e: YES", markdown)
+        self.assertIn("Webhook no-server detected: NO", markdown)
         self.assertIn("Any webhook endpoint OK: YES", markdown)
         self.assertIn("- None", markdown)
 
@@ -128,6 +150,7 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
         self.assertTrue(payload["summary"]["ready_for_live_e2e"])
         self.assertTrue(payload["summary"]["public_webhook_any_endpoint_ok"])
         self.assertFalse(payload["summary"]["public_webhook_all_probed_endpoints_404"])
+        self.assertFalse(payload["summary"]["public_webhook_no_server"])
         self.assertEqual(payload["summary"]["missing_required_env_vars"], [])
 
     def test_main_can_write_json_and_markdown_outputs(self):
@@ -165,12 +188,14 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
             return_value={
                 "base_url": "https://commission-tracker-webhook.onrender.com",
                 "probed_endpoints": {
-                    "https://commission-tracker-webhook.onrender.com/": {"ok": False, "status": 404, "reason": "Not Found", "body_preview": "missing"},
-                    "https://commission-tracker-webhook.onrender.com/health": {"ok": False, "status": 404, "reason": "Not Found", "body_preview": "missing"},
+                    "https://commission-tracker-webhook.onrender.com/": {"ok": False, "status": 404, "reason": "Not Found", "body_preview": "missing", "headers": {"x-render-routing": "no-server"}},
+                    "https://commission-tracker-webhook.onrender.com/health": {"ok": False, "status": 404, "reason": "Not Found", "body_preview": "missing", "headers": {"x-render-routing": "no-server"}},
                 },
                 "any_ok": False,
                 "all_404": True,
-                "likely_cause": "All probed webhook endpoints returned 404. The Render service is likely misrouted, pointing at the wrong app, or not using webhook_server:app.",
+                "render_routing_modes": ["no-server"],
+                "no_server": True,
+                "likely_cause": "Render is reporting x-render-routing=no-server for the webhook hostname. That usually means there is no healthy backend service attached to this route yet or the service is not deployed behind the expected domain.",
             },
         ), mock.patch.object(
             smoke,
@@ -189,7 +214,9 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
         self.assertFalse(payload["summary"]["public_webhook_ok"])
         self.assertFalse(payload["summary"]["public_webhook_any_endpoint_ok"])
         self.assertTrue(payload["summary"]["public_webhook_all_probed_endpoints_404"])
-        self.assertIn("wrong app", payload["summary"]["public_webhook_likely_cause"].lower())
+        self.assertTrue(payload["summary"]["public_webhook_no_server"])
+        self.assertEqual(payload["summary"]["public_webhook_render_routing_modes"], ["no-server"])
+        self.assertIn("no healthy backend service", payload["summary"]["public_webhook_likely_cause"].lower())
         self.assertEqual(payload["summary"]["missing_required_env_vars"], ["STRIPE_WEBHOOK_SECRET"])
         self.assertFalse(payload["summary"]["ready_for_live_e2e"])
 
