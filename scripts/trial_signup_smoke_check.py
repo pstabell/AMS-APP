@@ -64,6 +64,10 @@ OPTIONAL_ENV_VARS = [
 
 RENDER_BLUEPRINT_SERVICES = {
     "commission-tracker-app": {
+        "runtime": "python",
+        "plan": "starter",
+        "autoDeploy": True,
+        "buildCommand": "pip install -r requirements.txt",
         "startCommand": "streamlit run commission_app.py --server.port ${PORT} --server.address 0.0.0.0",
         "healthCheckPath": "/",
         "required_env_vars": {
@@ -81,6 +85,10 @@ RENDER_BLUEPRINT_SERVICES = {
         },
     },
     "commission-tracker-webhook": {
+        "runtime": "python",
+        "plan": "starter",
+        "autoDeploy": True,
+        "buildCommand": "pip install -r requirements.txt",
         "startCommand": "gunicorn webhook_server:app --bind 0.0.0.0:${PORT}",
         "healthCheckPath": "/health",
         "required_env_vars": {
@@ -347,19 +355,37 @@ def check_render_blueprint() -> dict[str, Any]:
     for match in service_matches:
         name = match.group("name").strip()
         body = match.group("body")
+        runtime_match = re.search(r"runtime:\s*(.+)", body)
+        plan_match = re.search(r"plan:\s*(.+)", body)
+        auto_deploy_match = re.search(r"autoDeploy:\s*(.+)", body)
+        build_command_match = re.search(r"buildCommand:\s*(.+)", body)
         start_command_match = re.search(r"startCommand:\s*(.+)", body)
         health_path_match = re.search(r"healthCheckPath:\s*(.+)", body)
         env_keys = set(re.findall(r"- key:\s*([^\n]+)", body))
         expected = RENDER_BLUEPRINT_SERVICES.get(name)
         missing_env = sorted(expected["required_env_vars"] - env_keys) if expected else []
+        runtime = runtime_match.group(1).strip() if runtime_match else None
+        plan = plan_match.group(1).strip() if plan_match else None
+        auto_deploy = auto_deploy_match.group(1).strip().lower() == "true" if auto_deploy_match else None
+        build_command = build_command_match.group(1).strip() if build_command_match else None
+        start_command = start_command_match.group(1).strip() if start_command_match else None
+        health_check_path = health_path_match.group(1).strip() if health_path_match else None
         discovered_services[name] = {
             "present": True,
-            "start_command": start_command_match.group(1).strip() if start_command_match else None,
-            "health_check_path": health_path_match.group(1).strip() if health_path_match else None,
+            "runtime": runtime,
+            "plan": plan,
+            "auto_deploy": auto_deploy,
+            "build_command": build_command,
+            "start_command": start_command,
+            "health_check_path": health_check_path,
             "env_vars": sorted(env_keys),
             "missing_required_env_vars": missing_env,
-            "start_command_ok": bool(expected and start_command_match and start_command_match.group(1).strip() == expected["startCommand"]),
-            "health_check_path_ok": bool(expected and health_path_match and health_path_match.group(1).strip() == expected["healthCheckPath"]),
+            "runtime_ok": bool(expected and runtime == expected["runtime"]),
+            "plan_ok": bool(expected and plan == expected["plan"]),
+            "auto_deploy_ok": bool(expected and auto_deploy == expected["autoDeploy"]),
+            "build_command_ok": bool(expected and build_command == expected["buildCommand"]),
+            "start_command_ok": bool(expected and start_command == expected["startCommand"]),
+            "health_check_path_ok": bool(expected and health_check_path == expected["healthCheckPath"]),
         }
 
     missing_services = sorted(set(RENDER_BLUEPRINT_SERVICES) - set(discovered_services))
@@ -369,6 +395,22 @@ def check_render_blueprint() -> dict[str, Any]:
         if not service:
             problems.append(f"Missing Render service: {service_name}")
             continue
+        if not service["runtime_ok"]:
+            problems.append(
+                f"{service_name} runtime mismatch: expected {expected['runtime']}, found {service['runtime']}"
+            )
+        if not service["plan_ok"]:
+            problems.append(
+                f"{service_name} plan mismatch: expected {expected['plan']}, found {service['plan']}"
+            )
+        if not service["auto_deploy_ok"]:
+            problems.append(
+                f"{service_name} autoDeploy mismatch: expected {expected['autoDeploy']}, found {service['auto_deploy']}"
+            )
+        if not service["build_command_ok"]:
+            problems.append(
+                f"{service_name} buildCommand mismatch: expected {expected['buildCommand']}, found {service['build_command']}"
+            )
         if not service["start_command_ok"]:
             problems.append(
                 f"{service_name} startCommand mismatch: expected {expected['startCommand']}, found {service['start_command']}"
@@ -681,6 +723,26 @@ def generate_report() -> dict[str, Any]:
     return report
 
 
+def summarize_render_blueprint_services(services: dict[str, Any]) -> str:
+    if not services:
+        return "No services discovered"
+
+    summaries = []
+    for service, details in services.items():
+        summaries.append(
+            "{}: runtime={}, plan={}, autoDeploy={}, buildCommand={}, startCommand={}, healthCheckPath={}".format(
+                service,
+                "OK" if details.get("runtime_ok") else "FAIL",
+                "OK" if details.get("plan_ok") else "FAIL",
+                "OK" if details.get("auto_deploy_ok") else "FAIL",
+                "OK" if details.get("build_command_ok") else "FAIL",
+                "OK" if details.get("start_command_ok") else "FAIL",
+                "OK" if details.get("health_check_path_ok") else "FAIL",
+            )
+        )
+    return "; ".join(summaries)
+
+
 def render_markdown_report(report: dict[str, Any]) -> str:
     summary = report["summary"]
     diagnostics = report["public_checks"]["webhook_diagnostics"]
@@ -711,6 +773,7 @@ def render_markdown_report(report: dict[str, Any]) -> str:
         f"- Checkout contract payload: {report['local_checks']['checkout_contract']['payload']}",
         f"- Render blueprint OK: {'YES' if summary['render_blueprint_ok'] else 'NO'}",
         f"- Render blueprint payload: {report['local_checks']['render_blueprint']['payload']}",
+        f"- Render blueprint service contract summary: {summarize_render_blueprint_services(report['local_checks']['render_blueprint'].get('services', {}))}",
         f"- Webhook service contract OK: {'YES' if summary['webhook_service_contract_ok'] else 'NO'}",
         f"- Webhook service contract payload: {report['local_checks']['webhook_service_contract']['payload']}",
         "",

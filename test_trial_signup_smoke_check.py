@@ -177,6 +177,8 @@ services:
   - type: web
     name: commission-tracker-app
     runtime: python
+    plan: starter
+    autoDeploy: true
     buildCommand: pip install -r requirements.txt
     startCommand: streamlit run commission_app.py --server.port ${PORT} --server.address 0.0.0.0
     healthCheckPath: /
@@ -196,6 +198,8 @@ services:
   - type: web
     name: commission-tracker-webhook
     runtime: python
+    plan: starter
+    autoDeploy: true
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn webhook_server:app --bind 0.0.0.0:${PORT}
     healthCheckPath: /health
@@ -225,6 +229,10 @@ services:
         self.assertEqual(details["status"], 200)
         self.assertEqual(details["payload"], "Render blueprint looks complete")
         self.assertEqual(details["missing_services"], [])
+        self.assertTrue(details["services"]["commission-tracker-app"]["runtime_ok"])
+        self.assertTrue(details["services"]["commission-tracker-app"]["plan_ok"])
+        self.assertTrue(details["services"]["commission-tracker-app"]["auto_deploy_ok"])
+        self.assertTrue(details["services"]["commission-tracker-app"]["build_command_ok"])
         self.assertTrue(details["services"]["commission-tracker-app"]["start_command_ok"])
         self.assertTrue(details["services"]["commission-tracker-webhook"]["health_check_path_ok"])
 
@@ -287,6 +295,10 @@ def home():
 services:
   - type: web
     name: commission-tracker-webhook
+    runtime: node
+    plan: free
+    autoDeploy: false
+    buildCommand: npm install
     startCommand: python webhook_server.py
     healthCheckPath: /
     envVars:
@@ -298,6 +310,10 @@ services:
         self.assertFalse(details["ok"])
         self.assertEqual(details["status"], 500)
         self.assertIn("Missing Render service: commission-tracker-app", details["payload"])
+        self.assertIn("runtime mismatch", details["payload"])
+        self.assertIn("plan mismatch", details["payload"])
+        self.assertIn("autoDeploy mismatch", details["payload"])
+        self.assertIn("buildCommand mismatch", details["payload"])
         self.assertIn("startCommand mismatch", details["payload"])
         self.assertIn("healthCheckPath mismatch", details["payload"])
         self.assertIn("missing env vars", details["payload"])
@@ -398,7 +414,24 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
                 "ok": True,
                 "status": 200,
                 "payload": "Render blueprint looks complete",
-                "services": {},
+                "services": {
+                    "commission-tracker-app": {
+                        "runtime_ok": True,
+                        "plan_ok": True,
+                        "auto_deploy_ok": True,
+                        "build_command_ok": True,
+                        "start_command_ok": True,
+                        "health_check_path_ok": True,
+                    },
+                    "commission-tracker-webhook": {
+                        "runtime_ok": True,
+                        "plan_ok": True,
+                        "auto_deploy_ok": True,
+                        "build_command_ok": True,
+                        "start_command_ok": True,
+                        "health_check_path_ok": True,
+                    },
+                },
                 "missing_services": [],
             },
         ), mock.patch.object(
@@ -415,6 +448,27 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         ):
             return smoke.generate_report()
 
+    def test_summarize_render_blueprint_services_reports_full_contract_status(self):
+        summary = smoke.summarize_render_blueprint_services(
+            {
+                "commission-tracker-app": {
+                    "runtime_ok": True,
+                    "plan_ok": True,
+                    "auto_deploy_ok": True,
+                    "build_command_ok": True,
+                    "start_command_ok": True,
+                    "health_check_path_ok": False,
+                }
+            }
+        )
+
+        self.assertIn("commission-tracker-app: runtime=OK", summary)
+        self.assertIn("plan=OK", summary)
+        self.assertIn("autoDeploy=OK", summary)
+        self.assertIn("buildCommand=OK", summary)
+        self.assertIn("startCommand=OK", summary)
+        self.assertIn("healthCheckPath=FAIL", summary)
+
     def test_render_markdown_report_includes_readiness_summary(self):
         report = self._build_ready_report()
 
@@ -426,6 +480,9 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertIn("Any webhook endpoint OK: YES", markdown)
         self.assertIn("Checkout contract OK: YES", markdown)
         self.assertIn("Render blueprint OK: YES", markdown)
+        self.assertIn("Render blueprint service contract summary:", markdown)
+        self.assertIn("runtime=", markdown)
+        self.assertIn("buildCommand=", markdown)
         self.assertIn("Webhook service contract OK: YES", markdown)
         self.assertIn("## Blocking reasons", markdown)
         self.assertIn("## Recommended next actions", markdown)
