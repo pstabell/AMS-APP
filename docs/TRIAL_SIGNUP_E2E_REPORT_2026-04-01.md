@@ -143,7 +143,8 @@ It now also emits `local_webhook_dependency_commands` in both JSON and Markdown 
 - Updated `scripts/trial_signup_smoke_check.py` and `test_trial_signup_smoke_check.py` so the JSON and Markdown artifacts now include `render_hostname_diagnostics` alongside the existing domain-attachment, env-gap, and service-contract handoff sections.
 - Fresh evidence now explicitly classifies `commission-tracker-app.onrender.com` as `healthy-attached` with `x-render-origin-server=TornadoServer/6.5.5`, while `commission-tracker-webhook.onrender.com` is classified as `missing-backend-attachment` with `HTTP 404` and `x-render-routing=no-server` on `/health`.
 - Added a new `render_incident_signature` section to the smoke-check output so the handoff now states, in one line, whether the failure pattern isolates cleanly to external Render routing/domain binding versus a repo-side regression.
-- Validation: `python3 -m unittest test_checkout_flow.py test_webhook_subscription_status.py test_trial_signup_smoke_check.py` passed 171/171
+- Added a new `render_recovery_playbook` section to the smoke-check output so the generated artifact now gives ops an ordered recovery sequence starting with webhook domain attachment, then deploy contract verification, then secret loading, then the final ready-for-live-e2e gate.
+- Validation: `python3 -m unittest test_checkout_flow.py test_webhook_subscription_status.py test_trial_signup_smoke_check.py` passed 173/173
 - Fresh artifacts:
   - `docs/smoke-checks/latest-trial-signup-smoke-check.json`
   - `docs/smoke-checks/latest-trial-signup-smoke-check.md`

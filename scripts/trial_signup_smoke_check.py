@@ -762,6 +762,55 @@ def build_render_incident_signature(report: dict[str, Any], render_hostname_diag
     }
 
 
+def build_render_recovery_playbook(
+    report: dict[str, Any],
+    render_incident_signature: dict[str, Any],
+    render_service_env_gap: dict[str, Any],
+    missing_required: list[str],
+) -> list[str]:
+    playbook: list[str] = []
+    webhook_host = report["webhook_base_url"].replace("https://", "").replace("http://", "").rstrip("/")
+    app_host = report["app_url"].replace("https://", "").replace("http://", "").rstrip("/")
+
+    if render_incident_signature.get("external_routing_issue"):
+        playbook.extend(
+            [
+                "1. Render dashboard: open commission-tracker-webhook first because the smoke check isolated the incident to the webhook hostname, not the main app.",
+                f"2. Custom Domains: confirm {webhook_host} is attached to commission-tracker-webhook while {app_host} remains attached to commission-tracker-app.",
+                "3. If the webhook hostname is missing or attached to the wrong service, remove the stale attachment, reattach it to commission-tracker-webhook, and save.",
+                "4. Build & Deploy: confirm the deployed start command is gunicorn webhook_server:app --bind 0.0.0.0:${PORT} and trigger a manual deploy if Render has stale runtime state.",
+                "5. Wait for Render to report a healthy instance, then probe /health again before attempting any Stripe flow.",
+            ]
+        )
+    else:
+        playbook.extend(
+            [
+                "1. Review both Render services together because the current probe pattern does not isolate the outage to the webhook hostname alone.",
+                "2. Confirm the checked-in build, start, and health-check contract for both services matches the Render dashboard before redeploying.",
+                "3. Probe both public hostnames after deploy and only proceed once the app and webhook checks are both green.",
+            ]
+        )
+
+    webhook_env_gap = render_service_env_gap.get("commission-tracker-webhook", {})
+    missing_webhook_shell = webhook_env_gap.get("missing_in_shell", [])
+    if missing_webhook_shell:
+        playbook.append(
+            "6. Load the missing webhook runtime values in Render or the verification shell: "
+            + ", ".join(missing_webhook_shell)
+        )
+
+    if missing_required:
+        playbook.append(
+            "7. Before the real signup test, load the remaining live E2E secrets into the verification shell: "
+            + ", ".join(missing_required)
+        )
+
+    playbook.append(
+        "8. Re-run python3 scripts/trial_signup_smoke_check.py and only run a real Stripe test-mode signup after ready_for_live_e2e flips to true."
+    )
+    return playbook
+
+
 def build_blockers_and_actions(report: dict[str, Any], missing_required: list[str]) -> tuple[list[str], list[str], list[str], list[str], list[str], dict[str, Any]]:
     blockers: list[str] = []
     actions: list[str] = []
@@ -872,6 +921,12 @@ def generate_report() -> dict[str, Any]:
     render_domain_attachment_commands = build_render_domain_attachment_commands(report)
     render_hostname_diagnostics = build_render_hostname_diagnostics(report)
     render_incident_signature = build_render_incident_signature(report, render_hostname_diagnostics)
+    render_recovery_playbook = build_render_recovery_playbook(
+        report,
+        render_incident_signature,
+        render_service_env_gap,
+        missing_required,
+    )
     report["summary"] = {
         "public_app_ok": report["public_checks"]["app"]["ok"],
         "public_webhook_ok": report["public_checks"]["webhook_health"]["ok"],
@@ -896,6 +951,7 @@ def generate_report() -> dict[str, Any]:
         "render_domain_attachment_commands": render_domain_attachment_commands,
         "render_hostname_diagnostics": render_hostname_diagnostics,
         "render_incident_signature": render_incident_signature,
+        "render_recovery_playbook": render_recovery_playbook,
         "ready_for_live_e2e": (
             report["public_checks"]["app"]["ok"]
             and report["public_checks"]["webhook_health"]["ok"]
@@ -1055,8 +1111,11 @@ def render_markdown_report(report: dict[str, Any]) -> str:
             f"- Webhook host attachment state: {incident['webhook_host_attachment_state']}",
             f"- External routing issue isolated: {'YES' if incident['external_routing_issue'] else 'NO'}",
             f"- Conclusion: {incident['conclusion']}",
+            "",
+            "## Render recovery playbook",
         ]
     )
+    lines.extend(f"- {step}" for step in summary["render_recovery_playbook"] or ["None"])
 
     lines.extend(
         [

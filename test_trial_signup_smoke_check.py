@@ -276,6 +276,53 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
         self.assertEqual(details["webhook_host_attachment_state"], "missing-backend-attachment")
         self.assertIn("external Render service or domain binding problem", details["conclusion"])
 
+    def test_build_render_recovery_playbook_prioritizes_webhook_attachment_when_incident_is_isolated(self):
+        report = {
+            "app_url": "https://commission-tracker-app.onrender.com",
+            "webhook_base_url": "https://commission-tracker-webhook.onrender.com",
+        }
+        incident_signature = {
+            "external_routing_issue": True,
+        }
+        render_service_env_gap = {
+            "commission-tracker-webhook": {
+                "missing_in_shell": ["STRIPE_WEBHOOK_SECRET", "SMTP_HOST"],
+            }
+        }
+
+        playbook = smoke.build_render_recovery_playbook(
+            report,
+            incident_signature,
+            render_service_env_gap,
+            ["STRIPE_SECRET_KEY", "RESEND_API_KEY"],
+        )
+
+        self.assertIn("commission-tracker-webhook first", playbook[0])
+        self.assertIn("commission-tracker-webhook.onrender.com", playbook[1])
+        self.assertTrue(any("STRIPE_WEBHOOK_SECRET" in step for step in playbook))
+        self.assertTrue(any("STRIPE_SECRET_KEY, RESEND_API_KEY" in step for step in playbook))
+        self.assertTrue(playbook[-1].endswith("ready_for_live_e2e flips to true."))
+
+    def test_build_render_recovery_playbook_falls_back_to_dual_service_review_when_not_isolated(self):
+        report = {
+            "app_url": "https://commission-tracker-app.onrender.com",
+            "webhook_base_url": "https://commission-tracker-webhook.onrender.com",
+        }
+        incident_signature = {
+            "external_routing_issue": False,
+        }
+
+        playbook = smoke.build_render_recovery_playbook(
+            report,
+            incident_signature,
+            {"commission-tracker-webhook": {"missing_in_shell": []}},
+            [],
+        )
+
+        self.assertIn("Review both Render services together", playbook[0])
+        self.assertIn("Probe both public hostnames after deploy", playbook[2])
+        self.assertTrue(playbook[-1].endswith("ready_for_live_e2e flips to true."))
+
     def test_check_render_blueprint_reports_expected_services(self):
         render_yaml = """
 services:
@@ -599,6 +646,7 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertIn("## Render domain attachment commands", markdown)
         self.assertIn("## Render hostname diagnostics", markdown)
         self.assertIn("## Render incident signature", markdown)
+        self.assertIn("## Render recovery playbook", markdown)
         self.assertIn("External routing issue isolated: NO", markdown)
         self.assertIn("Open the Render dashboard for service commission-tracker-webhook.", markdown)
         self.assertIn("curl -i https://commission-tracker-webhook.onrender.com/health", markdown)
@@ -639,6 +687,7 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertEqual(payload["summary"]["render_hostname_diagnostics"]["commission-tracker-app"]["attachment_state"], "healthy-attached")
         self.assertTrue(payload["summary"]["render_incident_signature"]["repo_contract_ok"])
         self.assertFalse(payload["summary"]["render_incident_signature"]["external_routing_issue"])
+        self.assertIn("Review both Render services together", payload["summary"]["render_recovery_playbook"][0])
 
     def test_main_can_write_json_and_markdown_outputs(self):
         report = self._build_ready_report()
@@ -754,6 +803,7 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertEqual(payload["summary"]["render_hostname_diagnostics"]["commission-tracker-webhook"]["attachment_state"], "missing-backend-attachment")
         self.assertTrue(payload["summary"]["render_incident_signature"]["external_routing_issue"])
         self.assertIn("domain binding problem", payload["summary"]["render_incident_signature"]["conclusion"])
+        self.assertIn("commission-tracker-webhook first", payload["summary"]["render_recovery_playbook"][0])
         self.assertEqual(payload["summary"]["local_webhook_dependency_commands"], [])
         self.assertFalse(payload["summary"]["ready_for_live_e2e"])
 
