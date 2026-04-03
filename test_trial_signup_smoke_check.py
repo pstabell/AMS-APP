@@ -201,6 +201,24 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
         self.assertIn("Render dashboard -> commission-tracker-webhook -> Health Check: confirm path='/health'", commands["commission-tracker-webhook"])
         self.assertTrue(any("STRIPE_WEBHOOK_SECRET" in command for command in commands["commission-tracker-webhook"]))
 
+    def test_build_render_domain_attachment_commands_target_expected_hosts(self):
+        report = {
+            "app_url": "https://commission-tracker-app.onrender.com",
+            "webhook_base_url": "https://commission-tracker-webhook.onrender.com",
+        }
+
+        commands = smoke.build_render_domain_attachment_commands(report)
+
+        self.assertIn(
+            "Render dashboard -> commission-tracker-app -> Settings -> Custom Domains: confirm commission-tracker-app.onrender.com is attached to this service.",
+            commands["commission-tracker-app"],
+        )
+        self.assertIn(
+            "curl -I https://commission-tracker-webhook.onrender.com/health",
+            commands["commission-tracker-webhook"],
+        )
+        self.assertTrue(any("x-render-routing=no-server" in command for command in commands["commission-tracker-webhook"]))
+
     def test_check_render_blueprint_reports_expected_services(self):
         render_yaml = """
 services:
@@ -521,10 +539,12 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertIn("## Local webhook dependency commands", markdown)
         self.assertIn("## Render service env gap", markdown)
         self.assertIn("## Render service contract commands", markdown)
+        self.assertIn("## Render domain attachment commands", markdown)
         self.assertIn("Open the Render dashboard for service commission-tracker-webhook.", markdown)
         self.assertIn("curl -i https://commission-tracker-webhook.onrender.com/health", markdown)
         self.assertIn("Run one real Stripe test-mode signup", markdown)
         self.assertIn("Render dashboard -> commission-tracker-webhook -> Build & Deploy: confirm startCommand='gunicorn webhook_server:app --bind 0.0.0.0:${PORT}'", markdown)
+        self.assertIn("Render dashboard -> commission-tracker-webhook -> Settings -> Custom Domains: confirm commission-tracker-webhook.onrender.com is attached to this service.", markdown)
         self.assertIn("- commission-tracker-webhook: shell_ready=YES; missing_in_shell=None; missing_in_blueprint=None", markdown)
         self.assertIn("- None", markdown)
 
@@ -551,6 +571,10 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertEqual(payload["summary"]["render_restore_validation_commands"][0], "curl -i https://commission-tracker-webhook.onrender.com/health")
         self.assertEqual(payload["summary"]["render_service_env_gap"]["commission-tracker-app"]["missing_in_shell"], [])
         self.assertTrue(payload["summary"]["render_service_env_gap"]["commission-tracker-webhook"]["shell_ready"])
+        self.assertIn(
+            "Render dashboard -> commission-tracker-webhook -> Settings -> Custom Domains: confirm commission-tracker-webhook.onrender.com is attached to this service.",
+            payload["summary"]["render_domain_attachment_commands"]["commission-tracker-webhook"],
+        )
 
     def test_main_can_write_json_and_markdown_outputs(self):
         report = self._build_ready_report()

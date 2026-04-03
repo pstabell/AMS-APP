@@ -42,7 +42,7 @@
       }
     }
   },
-  "generated_at": "2026-04-03T07:17:24.169119+00:00",
+  "generated_at": "2026-04-03T09:15:52.318646+00:00",
   "local_checks": {
     "checkout_contract": {
       "expected_trial_days": 14,
@@ -305,6 +305,18 @@
     ],
     "ready_for_live_e2e": false,
     "render_blueprint_ok": true,
+    "render_domain_attachment_commands": {
+      "commission-tracker-app": [
+        "Render dashboard -> commission-tracker-app -> Settings -> Custom Domains: confirm commission-tracker-app.onrender.com is attached to this service.",
+        "curl -I https://commission-tracker-app.onrender.com/",
+        "If the app hostname is attached elsewhere or missing, reattach commission-tracker-app.onrender.com to commission-tracker-app and redeploy."
+      ],
+      "commission-tracker-webhook": [
+        "Render dashboard -> commission-tracker-webhook -> Settings -> Custom Domains: confirm commission-tracker-webhook.onrender.com is attached to this service.",
+        "curl -I https://commission-tracker-webhook.onrender.com/health",
+        "If Render still returns x-render-routing=no-server, remove any stale domain attachment and reattach the webhook hostname to commission-tracker-webhook before redeploying."
+      ]
+    },
     "render_restore_checklist": [
       "Open the Render dashboard for service commission-tracker-webhook.",
       "Confirm the service is attached to https://commission-tracker-webhook.onrender.com and not left on a stale or missing domain binding.",

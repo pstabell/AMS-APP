@@ -653,6 +653,24 @@ def build_render_service_contract_commands() -> dict[str, list[str]]:
     return commands_by_service
 
 
+def build_render_domain_attachment_commands(report: dict[str, Any]) -> dict[str, list[str]]:
+    webhook_host = report["webhook_base_url"].replace("https://", "").replace("http://", "").rstrip("/")
+    app_host = report["app_url"].replace("https://", "").replace("http://", "").rstrip("/")
+
+    return {
+        "commission-tracker-app": [
+            f"Render dashboard -> commission-tracker-app -> Settings -> Custom Domains: confirm {app_host} is attached to this service.",
+            f"curl -I https://{app_host}/",
+            f"If the app hostname is attached elsewhere or missing, reattach {app_host} to commission-tracker-app and redeploy.",
+        ],
+        "commission-tracker-webhook": [
+            f"Render dashboard -> commission-tracker-webhook -> Settings -> Custom Domains: confirm {webhook_host} is attached to this service.",
+            f"curl -I https://{webhook_host}/health",
+            "If Render still returns x-render-routing=no-server, remove any stale domain attachment and reattach the webhook hostname to commission-tracker-webhook before redeploying.",
+        ],
+    }
+
+
 def build_blockers_and_actions(report: dict[str, Any], missing_required: list[str]) -> tuple[list[str], list[str], list[str], list[str], list[str], dict[str, Any]]:
     blockers: list[str] = []
     actions: list[str] = []
@@ -760,6 +778,7 @@ def generate_report() -> dict[str, Any]:
     blockers, next_actions, render_restore_checklist, render_restore_validation_commands, local_webhook_dependency_commands, render_service_env_gap = build_blockers_and_actions(report, missing_required)
     render_service_env_commands = build_render_service_env_commands(render_service_env_gap)
     render_service_contract_commands = build_render_service_contract_commands()
+    render_domain_attachment_commands = build_render_domain_attachment_commands(report)
     report["summary"] = {
         "public_app_ok": report["public_checks"]["app"]["ok"],
         "public_webhook_ok": report["public_checks"]["webhook_health"]["ok"],
@@ -781,6 +800,7 @@ def generate_report() -> dict[str, Any]:
         "render_service_env_gap": render_service_env_gap,
         "render_service_env_commands": render_service_env_commands,
         "render_service_contract_commands": render_service_contract_commands,
+        "render_domain_attachment_commands": render_domain_attachment_commands,
         "ready_for_live_e2e": (
             report["public_checks"]["app"]["ok"]
             and report["public_checks"]["webhook_health"]["ok"]
@@ -903,6 +923,12 @@ def render_markdown_report(report: dict[str, Any]) -> str:
 
     lines.extend(["", "## Render service contract commands"])
     for service_name, commands in summary["render_service_contract_commands"].items():
+        lines.append(f"- {service_name}:")
+        for command in commands:
+            lines.append(f"  - {command}")
+
+    lines.extend(["", "## Render domain attachment commands"])
+    for service_name, commands in summary["render_domain_attachment_commands"].items():
         lines.append(f"- {service_name}:")
         for command in commands:
             lines.append(f"  - {command}")

@@ -1,6 +1,6 @@
 # Trial Signup Smoke Check Snapshot
 
-Generated at: 2026-04-03T07:17:24.169119+00:00
+Generated at: 2026-04-03T09:15:52.318646+00:00
 Ready for live e2e: NO
 
 ## Public checks
@@ -101,6 +101,16 @@ PY
   - Render dashboard -> commission-tracker-webhook -> Build & Deploy: confirm startCommand='gunicorn webhook_server:app --bind 0.0.0.0:${PORT}'
   - Render dashboard -> commission-tracker-webhook -> Health Check: confirm path='/health'
   - Render dashboard -> commission-tracker-webhook -> Environment: confirm keys APP_ENVIRONMENT, FROM_EMAIL, PRODUCTION_SUPABASE_ANON_KEY, PRODUCTION_SUPABASE_SERVICE_KEY, PRODUCTION_SUPABASE_URL, RENDER_APP_URL, RESEND_API_KEY, SMTP_HOST, SMTP_PASS, SMTP_PORT, SMTP_USER, STRIPE_PRICE_ID, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, SUPABASE_ANON_KEY, SUPABASE_SERVICE_KEY, SUPABASE_URL
+
+## Render domain attachment commands
+- commission-tracker-app:
+  - Render dashboard -> commission-tracker-app -> Settings -> Custom Domains: confirm commission-tracker-app.onrender.com is attached to this service.
+  - curl -I https://commission-tracker-app.onrender.com/
+  - If the app hostname is attached elsewhere or missing, reattach commission-tracker-app.onrender.com to commission-tracker-app and redeploy.
+- commission-tracker-webhook:
+  - Render dashboard -> commission-tracker-webhook -> Settings -> Custom Domains: confirm commission-tracker-webhook.onrender.com is attached to this service.
+  - curl -I https://commission-tracker-webhook.onrender.com/health
+  - If Render still returns x-render-routing=no-server, remove any stale domain attachment and reattach the webhook hostname to commission-tracker-webhook before redeploying.
 
 ## Probe previews
 - Webhook health preview: Not Found
