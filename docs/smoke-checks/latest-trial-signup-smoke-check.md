@@ -1,6 +1,6 @@
 # Trial Signup Smoke Check Snapshot
 
-Generated at: 2026-04-03T19:15:48.093955+00:00
+Generated at: 2026-04-03T21:15:52.239896+00:00
 Ready for live e2e: NO
 
 ## Public checks
@@ -126,8 +126,25 @@ PY
 ## Render support packet
 - Incident type: render-webhook-routing-outage
 - Requested action: Confirm the webhook hostname is attached to commission-tracker-webhook, redeploy the service, and recheck /health until x-render-routing=no-server disappears.
-- commission-tracker-app: host=commission-tracker-app.onrender.com; probe_path=/; status=200 OK; attachment_state=healthy-attached; x-render-origin-server=TornadoServer/6.5.5; x-render-routing=None; cf-ray=9e6a677228762d23-IAD; date=Fri, 03 Apr 2026 19:15:48 GMT
-- commission-tracker-webhook: host=commission-tracker-webhook.onrender.com; probe_path=/health; status=404 Not Found; attachment_state=missing-backend-attachment; x-render-origin-server=None; x-render-routing=no-server; cf-ray=9e6a6773298886a6-IAD; date=Fri, 03 Apr 2026 19:15:48 GMT
+- commission-tracker-app: host=commission-tracker-app.onrender.com; probe_path=/; status=200 OK; attachment_state=healthy-attached; x-render-origin-server=TornadoServer/6.5.5; x-render-routing=None; cf-ray=9e6b1754187ce603-IAD; date=Fri, 03 Apr 2026 21:15:52 GMT
+- commission-tracker-webhook: host=commission-tracker-webhook.onrender.com; probe_path=/health; status=404 Not Found; attachment_state=missing-backend-attachment; x-render-origin-server=None; x-render-routing=no-server; cf-ray=9e6b17550cc32996-IAD; date=Fri, 03 Apr 2026 21:15:52 GMT
+
+## Owner action plan
+- traction:
+  - Forward the Render escalation message and support packet without rewriting the evidence.
+  - Tell Render support the app host commission-tracker-app.onrender.com/ is healthy while the webhook host commission-tracker-webhook.onrender.com/health is still detached or unrouted.
+  - Ask Render to confirm the webhook hostname is attached to commission-tracker-webhook and redeploy the service.
+  - Load or coordinate the missing app-shell runtime values before the final live test: APP_ENVIRONMENT, PRODUCTION_SUPABASE_ANON_KEY, PRODUCTION_SUPABASE_SERVICE_KEY, PRODUCTION_SUPABASE_URL, RENDER_APP_URL, RESEND_API_KEY, STRIPE_PRICE_ID, STRIPE_SECRET_KEY, SUPABASE_SERVICE_KEY
+  - Load or coordinate the missing webhook-shell runtime values before the final live test: APP_ENVIRONMENT, FROM_EMAIL, PRODUCTION_SUPABASE_ANON_KEY, PRODUCTION_SUPABASE_SERVICE_KEY, PRODUCTION_SUPABASE_URL, RENDER_APP_URL, RESEND_API_KEY, SMTP_HOST, SMTP_PASS, SMTP_PORT, SMTP_USER, STRIPE_PRICE_ID, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, SUPABASE_SERVICE_KEY
+- render_support:
+  - Confirm commission-tracker-webhook.onrender.com is attached to commission-tracker-webhook, not a stale or missing backend.
+  - Redeploy commission-tracker-webhook and verify the runtime comes up healthy behind the public hostname.
+  - Recheck https://commission-tracker-webhook.onrender.com/health until x-render-routing=no-server disappears and the endpoint returns 200.
+- verification_shell:
+  - Re-run python3 scripts/trial_signup_smoke_check.py after Render reports the webhook deploy is healthy.
+  - Refresh the JSON and Markdown smoke-check artifacts before attempting any live Stripe path.
+  - Export the missing live E2E secrets before the final test: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_ID, RESEND_API_KEY, SUPABASE_SERVICE_KEY
+  - Only run a real Stripe test-mode signup after ready_for_live_e2e flips to true.
 
 ## Render recovery playbook
 - 1. Render dashboard: open commission-tracker-webhook first because the smoke check isolated the incident to the webhook hostname, not the main app.
@@ -141,7 +158,7 @@ PY
 
 ## Render escalation message
 Render support request for AMS-APP webhook routing outage.
-Generated at 2026-04-03T19:15:48.093955+00:00.
+Generated at 2026-04-03T21:15:52.239896+00:00.
 Repo-side checkout, webhook, and Render blueprint contracts are green while the app hostname is healthy-attached and the webhook hostname is missing-backend-attachment. This points to an external Render service or domain binding problem, not an app-code route regression.
 Healthy app host evidence: commission-tracker-app.onrender.com/ -> HTTP 200 OK with attachment_state=healthy-attached and x-render-origin-server=TornadoServer/6.5.5.
 Broken webhook host evidence: commission-tracker-webhook.onrender.com/health -> HTTP 404 Not Found with attachment_state=missing-backend-attachment and x-render-routing=no-server.

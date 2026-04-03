@@ -370,6 +370,46 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
         self.assertIn("Requested action: Confirm the webhook hostname is attached to commission-tracker-webhook.", message)
         self.assertIn("- 1. Open commission-tracker-webhook in Render.", message)
 
+    def test_build_owner_action_plan_splits_next_steps_by_owner(self):
+        report = {
+            "app_url": "https://commission-tracker-app.onrender.com",
+            "webhook_base_url": "https://commission-tracker-webhook.onrender.com",
+        }
+        support_packet = {
+            "host_comparison": {
+                "commission-tracker-app": {
+                    "host": "commission-tracker-app.onrender.com",
+                    "probe_path": "/",
+                },
+                "commission-tracker-webhook": {
+                    "host": "commission-tracker-webhook.onrender.com",
+                    "probe_path": "/health",
+                },
+            }
+        }
+        render_service_env_gap = {
+            "commission-tracker-app": {
+                "missing_in_shell": ["RESEND_API_KEY"],
+            },
+            "commission-tracker-webhook": {
+                "missing_in_shell": ["STRIPE_WEBHOOK_SECRET", "SMTP_HOST"],
+            },
+        }
+
+        plan = smoke.build_owner_action_plan(
+            report,
+            support_packet,
+            render_service_env_gap,
+            ["STRIPE_SECRET_KEY", "RESEND_API_KEY"],
+        )
+
+        self.assertIn("Forward the Render escalation message", plan["traction"][0])
+        self.assertTrue(any("commission-tracker-webhook.onrender.com/health" in step for step in plan["traction"]))
+        self.assertTrue(any("STRIPE_WEBHOOK_SECRET" in step for step in plan["traction"]))
+        self.assertTrue(any("x-render-routing=no-server" in step for step in plan["render_support"]))
+        self.assertTrue(any("python3 scripts/trial_signup_smoke_check.py" in step for step in plan["verification_shell"]))
+        self.assertTrue(any("ready_for_live_e2e flips to true" in step for step in plan["verification_shell"]))
+
     def test_build_render_recovery_playbook_prioritizes_webhook_attachment_when_incident_is_isolated(self):
         report = {
             "app_url": "https://commission-tracker-app.onrender.com",
@@ -741,9 +781,13 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertIn("## Render hostname diagnostics", markdown)
         self.assertIn("## Render incident signature", markdown)
         self.assertIn("## Render support packet", markdown)
+        self.assertIn("## Owner action plan", markdown)
         self.assertIn("## Render recovery playbook", markdown)
         self.assertIn("## Render escalation message", markdown)
         self.assertIn("Render support request for AMS-APP webhook routing outage.", markdown)
+        self.assertIn("- traction:", markdown)
+        self.assertIn("- render_support:", markdown)
+        self.assertIn("- verification_shell:", markdown)
         self.assertIn("External routing issue isolated: NO", markdown)
         self.assertIn("Open the Render dashboard for service commission-tracker-webhook.", markdown)
         self.assertIn("curl -i https://commission-tracker-webhook.onrender.com/health", markdown)
@@ -784,6 +828,9 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         )
         self.assertEqual(payload["summary"]["render_hostname_diagnostics"]["commission-tracker-app"]["attachment_state"], "healthy-attached")
         self.assertEqual(payload["summary"]["render_support_packet"]["incident_type"], "render-webhook-routing-outage")
+        self.assertIn("traction", payload["summary"]["owner_action_plan"])
+        self.assertIn("render_support", payload["summary"]["owner_action_plan"])
+        self.assertIn("verification_shell", payload["summary"]["owner_action_plan"])
         self.assertIn("Render support request for AMS-APP webhook routing outage.", payload["summary"]["render_escalation_message"])
         self.assertTrue(payload["summary"]["render_incident_signature"]["repo_contract_ok"])
         self.assertFalse(payload["summary"]["render_incident_signature"]["external_routing_issue"])

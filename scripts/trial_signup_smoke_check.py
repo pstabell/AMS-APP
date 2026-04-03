@@ -846,6 +846,58 @@ def build_render_escalation_message(
     return "\n".join(lines)
 
 
+def build_owner_action_plan(
+    report: dict[str, Any],
+    render_support_packet: dict[str, Any],
+    render_service_env_gap: dict[str, Any],
+    missing_required: list[str],
+) -> dict[str, list[str]]:
+    webhook_host = render_support_packet["host_comparison"]["commission-tracker-webhook"]["host"]
+    app_host = render_support_packet["host_comparison"]["commission-tracker-app"]["host"]
+    webhook_probe = render_support_packet["host_comparison"]["commission-tracker-webhook"]
+    app_probe = render_support_packet["host_comparison"]["commission-tracker-app"]
+    webhook_missing = render_service_env_gap.get("commission-tracker-webhook", {}).get("missing_in_shell", [])
+    app_missing = render_service_env_gap.get("commission-tracker-app", {}).get("missing_in_shell", [])
+
+    plans = {
+        "traction": [
+            "Forward the Render escalation message and support packet without rewriting the evidence.",
+            f"Tell Render support the app host {app_host}{app_probe['probe_path']} is healthy while the webhook host {webhook_host}{webhook_probe['probe_path']} is still detached or unrouted.",
+            "Ask Render to confirm the webhook hostname is attached to commission-tracker-webhook and redeploy the service.",
+        ],
+        "render_support": [
+            f"Confirm {webhook_host} is attached to commission-tracker-webhook, not a stale or missing backend.",
+            "Redeploy commission-tracker-webhook and verify the runtime comes up healthy behind the public hostname.",
+            f"Recheck https://{webhook_host}/health until x-render-routing=no-server disappears and the endpoint returns 200.",
+        ],
+        "verification_shell": [
+            "Re-run python3 scripts/trial_signup_smoke_check.py after Render reports the webhook deploy is healthy.",
+            "Refresh the JSON and Markdown smoke-check artifacts before attempting any live Stripe path.",
+        ],
+    }
+
+    if app_missing:
+        plans["traction"].append(
+            "Load or coordinate the missing app-shell runtime values before the final live test: " + ", ".join(app_missing)
+        )
+
+    if webhook_missing:
+        plans["traction"].append(
+            "Load or coordinate the missing webhook-shell runtime values before the final live test: " + ", ".join(webhook_missing)
+        )
+
+    if missing_required:
+        plans["verification_shell"].append(
+            "Export the missing live E2E secrets before the final test: " + ", ".join(missing_required)
+        )
+
+    plans["verification_shell"].append(
+        "Only run a real Stripe test-mode signup after ready_for_live_e2e flips to true."
+    )
+
+    return plans
+
+
 def build_render_recovery_playbook(
     report: dict[str, Any],
     render_incident_signature: dict[str, Any],
@@ -1010,6 +1062,12 @@ def generate_report() -> dict[str, Any]:
         render_hostname_diagnostics,
         render_incident_signature,
     )
+    owner_action_plan = build_owner_action_plan(
+        report,
+        render_support_packet,
+        render_service_env_gap,
+        missing_required,
+    )
     render_recovery_playbook = build_render_recovery_playbook(
         report,
         render_incident_signature,
@@ -1046,6 +1104,7 @@ def generate_report() -> dict[str, Any]:
         "render_hostname_diagnostics": render_hostname_diagnostics,
         "render_incident_signature": render_incident_signature,
         "render_support_packet": render_support_packet,
+        "owner_action_plan": owner_action_plan,
         "render_recovery_playbook": render_recovery_playbook,
         "render_escalation_message": render_escalation_message,
         "ready_for_live_e2e": (
@@ -1229,6 +1288,12 @@ def render_markdown_report(report: dict[str, Any]) -> str:
                 details.get("date") or "None",
             )
         )
+
+    lines.extend(["", "## Owner action plan"])
+    for owner, actions in summary["owner_action_plan"].items():
+        lines.append(f"- {owner}:")
+        for action in actions:
+            lines.append(f"  - {action}")
 
     lines.extend(
         [
