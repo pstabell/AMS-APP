@@ -23,6 +23,7 @@ import sys
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
+from glob import glob
 from pathlib import Path
 from typing import Any
 
@@ -770,6 +771,121 @@ def build_public_probe_commands(report: dict[str, Any]) -> list[str]:
     return commands
 
 
+def _parse_generated_at(raw: str | None) -> datetime | None:
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _format_duration(total_seconds: float) -> str:
+    seconds = max(int(total_seconds), 0)
+    days, remainder = divmod(seconds, 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes, _ = divmod(remainder, 60)
+
+    parts: list[str] = []
+    if days:
+        parts.append(f"{days}d")
+    if hours or days:
+        parts.append(f"{hours}h")
+    parts.append(f"{minutes}m")
+    return " ".join(parts)
+
+
+def build_incident_history(current_report: dict[str, Any], previous_report: dict[str, Any] | None = None) -> dict[str, Any]:
+    artifacts_dir = ROOT / "docs" / "smoke-checks"
+    history: list[dict[str, Any]] = []
+
+    for path_str in sorted(glob(str(artifacts_dir / "*.json"))):
+        path = Path(path_str)
+        if path.name == "latest-trial-signup-smoke-check.json":
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+
+        generated_at = payload.get("generated_at")
+        generated_at_dt = _parse_generated_at(generated_at)
+        if generated_at_dt is None:
+            continue
+
+        summary = payload.get("summary", {})
+        history.append(
+            {
+                "artifact": path.name,
+                "generated_at": generated_at_dt,
+                "ready_for_live_e2e": bool(summary.get("ready_for_live_e2e")),
+                "public_webhook_ok": bool(summary.get("public_webhook_ok")),
+                "public_webhook_no_server": bool(summary.get("public_webhook_no_server")),
+            }
+        )
+
+    if previous_report:
+        previous_dt = _parse_generated_at(previous_report.get("generated_at"))
+        previous_summary = previous_report.get("summary", {})
+        if previous_dt is not None:
+            history.append(
+                {
+                    "artifact": "previous-latest-artifact",
+                    "generated_at": previous_dt,
+                    "ready_for_live_e2e": bool(previous_summary.get("ready_for_live_e2e")),
+                    "public_webhook_ok": bool(previous_summary.get("public_webhook_ok")),
+                    "public_webhook_no_server": bool(previous_summary.get("public_webhook_no_server")),
+                }
+            )
+
+    current_dt = _parse_generated_at(current_report.get("generated_at")) or datetime.now(timezone.utc)
+    current_summary = current_report.get("summary", {})
+    history.append(
+        {
+            "artifact": "current-run",
+            "generated_at": current_dt,
+            "ready_for_live_e2e": bool(current_summary.get("ready_for_live_e2e")),
+            "public_webhook_ok": bool(current_summary.get("public_webhook_ok")),
+            "public_webhook_no_server": bool(current_summary.get("public_webhook_no_server")),
+        }
+    )
+    history.sort(key=lambda item: item["generated_at"])
+
+    blocked_runs = [item for item in history if not item["ready_for_live_e2e"]]
+    no_server_runs = [item for item in history if item["public_webhook_no_server"]]
+    current_state_started_at = None
+    current_signature = (
+        bool(current_summary.get("ready_for_live_e2e")),
+        bool(current_summary.get("public_webhook_ok")),
+        bool(current_summary.get("public_webhook_no_server")),
+    )
+    for item in reversed(history):
+        signature = (
+            item["ready_for_live_e2e"],
+            item["public_webhook_ok"],
+            item["public_webhook_no_server"],
+        )
+        if signature == current_signature:
+            current_state_started_at = item["generated_at"]
+        else:
+            break
+
+    first_blocked_at = blocked_runs[0]["generated_at"] if blocked_runs else None
+    first_no_server_at = no_server_runs[0]["generated_at"] if no_server_runs else None
+
+    return {
+        "artifact_count": len(history),
+        "blocked_artifact_count": len(blocked_runs),
+        "first_blocked_at": first_blocked_at.isoformat() if first_blocked_at else None,
+        "first_no_server_at": first_no_server_at.isoformat() if first_no_server_at else None,
+        "current_state_started_at": current_state_started_at.isoformat() if current_state_started_at else None,
+        "blocked_duration": _format_duration((current_dt - first_blocked_at).total_seconds()) if first_blocked_at else None,
+        "no_server_duration": _format_duration((current_dt - first_no_server_at).total_seconds()) if first_no_server_at else None,
+        "current_state_duration": _format_duration((current_dt - current_state_started_at).total_seconds()) if current_state_started_at else None,
+        "latest_status": "ready" if current_summary.get("ready_for_live_e2e") else "blocked",
+    }
+
+
 def build_change_summary(current_report: dict[str, Any], previous_report: dict[str, Any] | None) -> dict[str, Any]:
     if not previous_report:
         return {
@@ -1303,6 +1419,7 @@ def generate_report(previous_report: dict[str, Any] | None = None) -> dict[str, 
         missing_required,
     )
     change_summary = build_change_summary(report, previous_report)
+    incident_history = build_incident_history(report, previous_report=previous_report)
     escalation_recommendation = build_escalation_recommendation(
         report,
         render_incident_signature,
@@ -1366,6 +1483,7 @@ def generate_report(previous_report: dict[str, Any] | None = None) -> dict[str, 
         "render_escalation_payload": render_escalation_payload,
         "ready_for_live_e2e": ready_for_live_e2e,
         "change_summary": change_summary,
+        "incident_history": incident_history,
         "escalation_recommendation": escalation_recommendation,
     }
     return report
@@ -1533,6 +1651,18 @@ def render_markdown_report(report: dict[str, Any]) -> str:
     lines.append(f"- Material change detected: {'YES' if change_summary.get('summary_changed') else 'NO'}")
     lines.append(f"- Unchanged blocked streak: {change_summary.get('unchanged_blocked_streak', 0)}")
     lines.extend(f"- {change}" for change in change_summary.get("changes", []) or ["None"])
+
+    incident_history = summary["incident_history"]
+    lines.extend(["", "## Incident history"])
+    lines.append(f"- Artifact count considered: {incident_history.get('artifact_count')}")
+    lines.append(f"- Blocked artifact count: {incident_history.get('blocked_artifact_count')}")
+    lines.append(f"- Latest status: {incident_history.get('latest_status')}")
+    lines.append(f"- First blocked at: {incident_history.get('first_blocked_at') or 'None'}")
+    lines.append(f"- First no-server at: {incident_history.get('first_no_server_at') or 'None'}")
+    lines.append(f"- Current state started at: {incident_history.get('current_state_started_at') or 'None'}")
+    lines.append(f"- Blocked duration: {incident_history.get('blocked_duration') or 'None'}")
+    lines.append(f"- No-server duration: {incident_history.get('no_server_duration') or 'None'}")
+    lines.append(f"- Current state duration: {incident_history.get('current_state_duration') or 'None'}")
 
     incident = summary["render_incident_signature"]
     lines.extend(

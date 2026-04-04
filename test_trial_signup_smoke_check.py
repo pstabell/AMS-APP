@@ -255,6 +255,111 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
         self.assertEqual(details["commission-tracker-webhook"]["x_render_routing"], "no-server")
         self.assertIn("HTTP 404", details["commission-tracker-webhook"]["evidence"])
 
+    def test_build_incident_history_tracks_first_blocked_and_no_server_windows(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = pathlib.Path(tmpdir)
+            smoke_dir = root / "docs" / "smoke-checks"
+            smoke_dir.mkdir(parents=True)
+
+            (smoke_dir / "trial-signup-smoke-check-1.json").write_text(
+                json.dumps(
+                    {
+                        "generated_at": "2026-04-02T00:00:00+00:00",
+                        "summary": {
+                            "ready_for_live_e2e": False,
+                            "public_webhook_ok": False,
+                            "public_webhook_no_server": True,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (smoke_dir / "trial-signup-smoke-check-2.json").write_text(
+                json.dumps(
+                    {
+                        "generated_at": "2026-04-03T00:00:00+00:00",
+                        "summary": {
+                            "ready_for_live_e2e": False,
+                            "public_webhook_ok": False,
+                            "public_webhook_no_server": True,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (smoke_dir / "latest-trial-signup-smoke-check.json").write_text("{}", encoding="utf-8")
+
+            current_report = {
+                "generated_at": "2026-04-04T12:30:00+00:00",
+                "summary": {
+                    "ready_for_live_e2e": False,
+                    "public_webhook_ok": False,
+                    "public_webhook_no_server": True,
+                },
+            }
+
+            with mock.patch.object(smoke, "ROOT", root):
+                history = smoke.build_incident_history(current_report)
+
+        self.assertEqual(history["artifact_count"], 3)
+        self.assertEqual(history["blocked_artifact_count"], 3)
+        self.assertEqual(history["first_blocked_at"], "2026-04-02T00:00:00+00:00")
+        self.assertEqual(history["first_no_server_at"], "2026-04-02T00:00:00+00:00")
+        self.assertEqual(history["current_state_started_at"], "2026-04-02T00:00:00+00:00")
+        self.assertEqual(history["latest_status"], "blocked")
+        self.assertEqual(history["blocked_duration"], "2d 12h 30m")
+        self.assertEqual(history["current_state_duration"], "2d 12h 30m")
+
+    def test_build_incident_history_resets_current_state_when_signature_changes(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = pathlib.Path(tmpdir)
+            smoke_dir = root / "docs" / "smoke-checks"
+            smoke_dir.mkdir(parents=True)
+
+            (smoke_dir / "trial-signup-smoke-check-1.json").write_text(
+                json.dumps(
+                    {
+                        "generated_at": "2026-04-02T00:00:00+00:00",
+                        "summary": {
+                            "ready_for_live_e2e": False,
+                            "public_webhook_ok": False,
+                            "public_webhook_no_server": False,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (smoke_dir / "trial-signup-smoke-check-2.json").write_text(
+                json.dumps(
+                    {
+                        "generated_at": "2026-04-03T12:00:00+00:00",
+                        "summary": {
+                            "ready_for_live_e2e": False,
+                            "public_webhook_ok": False,
+                            "public_webhook_no_server": True,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            current_report = {
+                "generated_at": "2026-04-04T12:30:00+00:00",
+                "summary": {
+                    "ready_for_live_e2e": False,
+                    "public_webhook_ok": False,
+                    "public_webhook_no_server": True,
+                },
+            }
+
+            with mock.patch.object(smoke, "ROOT", root):
+                history = smoke.build_incident_history(current_report)
+
+        self.assertEqual(history["first_blocked_at"], "2026-04-02T00:00:00+00:00")
+        self.assertEqual(history["first_no_server_at"], "2026-04-03T12:00:00+00:00")
+        self.assertEqual(history["current_state_started_at"], "2026-04-03T12:00:00+00:00")
+        self.assertEqual(history["current_state_duration"], "1d 0h 30m")
+
     def test_build_change_summary_reports_no_previous_artifact(self):
         current_report = {"summary": {}}
 
