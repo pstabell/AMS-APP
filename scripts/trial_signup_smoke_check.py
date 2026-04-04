@@ -1256,6 +1256,7 @@ def build_owner_action_plan(
     plans = {
         "traction": [
             "Forward the Render escalation message and support packet without rewriting the evidence.",
+            "Attach the latest smoke-check JSON, smoke-check Markdown, trial-signup report, and render.yaml from the artifact inventory.",
             f"Tell Render support the app host {app_host}{app_probe['probe_path']} is healthy while the webhook host {webhook_host}{webhook_probe['probe_path']} is still detached or unrouted.",
             "Ask Render to confirm the webhook hostname is attached to commission-tracker-webhook and redeploy the service.",
         ],
@@ -1267,6 +1268,7 @@ def build_owner_action_plan(
         "verification_shell": [
             "Re-run python3 scripts/trial_signup_smoke_check.py after Render reports the webhook deploy is healthy.",
             "Refresh the JSON and Markdown smoke-check artifacts before attempting any live Stripe path.",
+            "Use the artifact inventory to attach the updated evidence files to the handoff after each rerun.",
         ],
     }
 
@@ -1299,6 +1301,45 @@ def build_artifact_refresh_commands() -> dict[str, str]:
         "both": "python3 scripts/trial_signup_smoke_check.py --json-out docs/smoke-checks/latest-trial-signup-smoke-check.json --markdown-out docs/smoke-checks/latest-trial-signup-smoke-check.md",
     }
 
+
+def build_artifact_inventory() -> dict[str, Any]:
+    smoke_dir = ROOT / "docs" / "smoke-checks"
+    artifact_paths = {
+        "latest_json": smoke_dir / "latest-trial-signup-smoke-check.json",
+        "latest_markdown": smoke_dir / "latest-trial-signup-smoke-check.md",
+        "trial_signup_report": ROOT / "docs" / "TRIAL_SIGNUP_E2E_REPORT_2026-04-01.md",
+        "render_blueprint": ROOT / "render.yaml",
+        "smoke_check_script": ROOT / "scripts" / "trial_signup_smoke_check.py",
+        "smoke_check_tests": ROOT / "test_trial_signup_smoke_check.py",
+    }
+
+    inventory: dict[str, Any] = {}
+    for label, path in artifact_paths.items():
+        exists = path.exists()
+        inventory[label] = {
+            "path": str(path.relative_to(ROOT)) if path.is_absolute() else str(path),
+            "exists": exists,
+            "size_bytes": path.stat().st_size if exists else 0,
+            "modified_at": datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat() if exists else None,
+        }
+
+    inventory["recommended_attachments"] = [
+        "docs/smoke-checks/latest-trial-signup-smoke-check.json",
+        "docs/smoke-checks/latest-trial-signup-smoke-check.md",
+        "docs/TRIAL_SIGNUP_E2E_REPORT_2026-04-01.md",
+        "render.yaml",
+    ]
+    inventory["render_support_packet_files"] = [
+        "docs/smoke-checks/latest-trial-signup-smoke-check.json",
+        "docs/smoke-checks/latest-trial-signup-smoke-check.md",
+        "render.yaml",
+    ]
+    inventory["traction_handoff_files"] = [
+        "docs/TRIAL_SIGNUP_E2E_REPORT_2026-04-01.md",
+        "docs/smoke-checks/latest-trial-signup-smoke-check.md",
+        "docs/smoke-checks/latest-trial-signup-smoke-check.json",
+    ]
+    return inventory
 
 
 def build_owner_ready_messages(
@@ -1517,6 +1558,7 @@ def generate_report(previous_report: dict[str, Any] | None = None) -> dict[str, 
         render_incident_signature,
     )
     artifact_refresh_commands = build_artifact_refresh_commands()
+    artifact_inventory = build_artifact_inventory()
     owner_action_plan = build_owner_action_plan(
         report,
         render_support_packet,
@@ -1607,6 +1649,7 @@ def generate_report(previous_report: dict[str, Any] | None = None) -> dict[str, 
         "render_incident_signature": render_incident_signature,
         "render_support_packet": render_support_packet,
         "artifact_refresh_commands": artifact_refresh_commands,
+        "artifact_inventory": artifact_inventory,
         "owner_action_plan": owner_action_plan,
         "owner_ready_messages": owner_ready_messages,
         "render_recovery_playbook": render_recovery_playbook,
@@ -1853,6 +1896,27 @@ def render_markdown_report(report: dict[str, Any]) -> str:
     )
     for label, command in summary["artifact_refresh_commands"].items():
         lines.append(f"- {label}: {command}")
+
+    lines.extend(
+        [
+            "",
+            "## Artifact inventory",
+        ]
+    )
+    inventory = summary["artifact_inventory"]
+    for label, details in inventory.items():
+        if isinstance(details, dict):
+            lines.append(
+                "- {}: path={}; exists={}; size_bytes={}; modified_at={}".format(
+                    label,
+                    details.get("path"),
+                    "YES" if details.get("exists") else "NO",
+                    details.get("size_bytes"),
+                    details.get("modified_at") or "None",
+                )
+            )
+        else:
+            lines.append(f"- {label}: {', '.join(details) if details else 'None'}")
 
     lines.extend(
         [

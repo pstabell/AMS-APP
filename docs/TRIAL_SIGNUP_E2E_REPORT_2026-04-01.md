@@ -9,11 +9,11 @@
 Validate the solo-agent trial signup path from signup form through Stripe checkout configuration, account provisioning webhook behavior, and onboarding email path.
 
 ## Latest Update
-- 2026-04-04 5:15 PM ET: Added `artifact_refresh_commands` to `scripts/trial_signup_smoke_check.py`, so every smoke-check JSON and Markdown artifact now includes explicit one-line commands to refresh the latest JSON only, Markdown only, or both artifacts together.
-- This removes another small ops handoff gap: whoever takes over the incident no longer has to reconstruct the exact artifact generation commands from the script flags before rerunning the packet.
-- Added regression coverage for the new artifact refresh command block in `test_trial_signup_smoke_check.py` and verified the Markdown report renders the new section.
-- Refreshed `docs/smoke-checks/latest-trial-signup-smoke-check.json` and `.md`; fresh live evidence is still unchanged on the external outage itself: `commission-tracker-app.onrender.com` returns HTTP 200 with `x-render-origin-server: TornadoServer/6.5.5`, while every probed webhook path still returns HTTP 404 with `x-render-routing: no-server`.
-- Validation: `python3 -m unittest test_checkout_flow.py test_webhook_subscription_status.py test_trial_signup_smoke_check.py` passed 193/193.
+- 2026-04-04 7:14 PM ET: Added `artifact_inventory` to `scripts/trial_signup_smoke_check.py`, so every smoke-check JSON and Markdown artifact now lists the exact evidence files, relative repo paths, existence flags, sizes, timestamps, and recommended attachment bundles for Traction and Render support.
+- This removes another manual handoff step: the next owner no longer has to guess which files to attach when escalating the Render outage or re-running the verification packet.
+- Updated `owner_action_plan` guidance so Traction explicitly attaches the latest smoke-check JSON, Markdown, trial-signup report, and `render.yaml`, and so the verification shell re-attaches refreshed evidence after each rerun.
+- Added regression coverage for the new artifact inventory block in `test_trial_signup_smoke_check.py` and verified the Markdown report renders the new section.
+- Validation: `python3 -m unittest test_checkout_flow.py test_webhook_subscription_status.py test_trial_signup_smoke_check.py` passed 194/194, then `python3 scripts/trial_signup_smoke_check.py --json-out docs/smoke-checks/latest-trial-signup-smoke-check.json --markdown-out docs/smoke-checks/latest-trial-signup-smoke-check.md` refreshed the latest evidence packet.
 
 ## What Was Verified
 

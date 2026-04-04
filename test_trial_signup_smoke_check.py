@@ -271,6 +271,37 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
             "python3 scripts/trial_signup_smoke_check.py --json-out docs/smoke-checks/latest-trial-signup-smoke-check.json --markdown-out docs/smoke-checks/latest-trial-signup-smoke-check.md",
         )
 
+    def test_build_artifact_inventory_reports_expected_handoff_files(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = pathlib.Path(tmpdir)
+            (root / "docs" / "smoke-checks").mkdir(parents=True)
+            (root / "scripts").mkdir(parents=True)
+            (root / "docs" / "smoke-checks" / "latest-trial-signup-smoke-check.json").write_text("{}", encoding="utf-8")
+            (root / "docs" / "smoke-checks" / "latest-trial-signup-smoke-check.md").write_text("# report\n", encoding="utf-8")
+            (root / "docs" / "TRIAL_SIGNUP_E2E_REPORT_2026-04-01.md").write_text("report\n", encoding="utf-8")
+            (root / "render.yaml").write_text("services:\n", encoding="utf-8")
+            (root / "scripts" / "trial_signup_smoke_check.py").write_text("print('ok')\n", encoding="utf-8")
+            (root / "test_trial_signup_smoke_check.py").write_text("pass\n", encoding="utf-8")
+
+            with mock.patch.object(smoke, "ROOT", root):
+                inventory = smoke.build_artifact_inventory()
+
+        self.assertEqual(inventory["latest_json"]["path"], "docs/smoke-checks/latest-trial-signup-smoke-check.json")
+        self.assertTrue(inventory["latest_json"]["exists"])
+        self.assertGreater(inventory["latest_json"]["size_bytes"], 0)
+        self.assertEqual(inventory["render_blueprint"]["path"], "render.yaml")
+        self.assertEqual(
+            inventory["recommended_attachments"],
+            [
+                "docs/smoke-checks/latest-trial-signup-smoke-check.json",
+                "docs/smoke-checks/latest-trial-signup-smoke-check.md",
+                "docs/TRIAL_SIGNUP_E2E_REPORT_2026-04-01.md",
+                "render.yaml",
+            ],
+        )
+        self.assertIn("render.yaml", inventory["render_support_packet_files"])
+        self.assertIn("docs/smoke-checks/latest-trial-signup-smoke-check.md", inventory["traction_handoff_files"])
+
     def test_build_owner_ready_messages_generates_forwardable_handoffs(self):
         report = {
             "generated_at": "2026-04-04T19:14:00+00:00",
@@ -1329,6 +1360,8 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertIn("## Escalation recommendation", markdown)
         self.assertIn("## Artifact refresh commands", markdown)
         self.assertIn("- both: python3 scripts/trial_signup_smoke_check.py --json-out docs/smoke-checks/latest-trial-signup-smoke-check.json --markdown-out docs/smoke-checks/latest-trial-signup-smoke-check.md", markdown)
+        self.assertIn("## Artifact inventory", markdown)
+        self.assertIn("- recommended_attachments: docs/smoke-checks/latest-trial-signup-smoke-check.json, docs/smoke-checks/latest-trial-signup-smoke-check.md, docs/TRIAL_SIGNUP_E2E_REPORT_2026-04-01.md, render.yaml", markdown)
         self.assertIn("## Owner action plan", markdown)
         self.assertIn("## Render recovery playbook", markdown)
         self.assertIn("## Recovery exit criteria", markdown)
