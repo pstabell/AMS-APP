@@ -865,6 +865,58 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
         self.assertIn("Probe both public hostnames after deploy", playbook[2])
         self.assertTrue(playbook[-1].endswith("ready_for_live_e2e flips to true."))
 
+    def test_build_executive_summary_lines_rolls_up_status_headers_and_escalation(self):
+        report = {
+            "public_checks": {
+                "app": {
+                    "status": 200,
+                    "reason": "OK",
+                    "headers": {"x-render-origin-server": "TornadoServer/6.5.5"},
+                },
+                "webhook_health": {
+                    "status": 404,
+                    "reason": "Not Found",
+                    "headers": {"x-render-routing": "no-server"},
+                },
+            },
+            "summary": {
+                "ready_for_live_e2e": False,
+            },
+        }
+        incident_signature = {
+            "app_host_attachment_state": "healthy-attached",
+            "webhook_host_attachment_state": "missing-backend-attachment",
+            "conclusion": "External Render service or domain binding problem.",
+        }
+        escalation_recommendation = {
+            "severity": "critical",
+            "owner": "Traction",
+            "destination": "Render support",
+            "recommended_message": "Traction should escalate to Render support immediately.",
+        }
+        change_summary = {
+            "unchanged_blocked_streak": 4,
+        }
+
+        lines = smoke.build_executive_summary_lines(
+            report,
+            incident_signature,
+            escalation_recommendation,
+            change_summary,
+            ["STRIPE_SECRET_KEY", "RESEND_API_KEY"],
+            False,
+        )
+
+        self.assertIn("still blocked", lines[0])
+        self.assertIn("HTTP 200 OK", lines[0])
+        self.assertIn("HTTP 404 Not Found", lines[0])
+        self.assertIn("x-render-origin-server=TornadoServer/6.5.5", lines[1])
+        self.assertIn("x-render-routing=no-server", lines[1])
+        self.assertEqual(lines[2], "External Render service or domain binding problem.")
+        self.assertIn("STRIPE_SECRET_KEY, RESEND_API_KEY", lines[3])
+        self.assertIn("severity=critical owner=Traction destination=Render support unchanged_blocked_streak=4", lines[4])
+        self.assertEqual(lines[5], "Traction should escalate to Render support immediately.")
+
     def test_build_recovery_exit_criteria_lists_resolution_gate_for_external_render_outage(self):
         report = {
             "app_url": "https://commission-tracker-app.onrender.com",
@@ -1191,6 +1243,9 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
 
         self.assertIn("# Trial Signup Smoke Check Snapshot", markdown)
         self.assertIn("Ready for live e2e: YES", markdown)
+        self.assertIn("## Executive summary", markdown)
+        self.assertIn("- AMS-APP trial signup stack is ready for live E2E.", markdown)
+        self.assertIn("- Escalation: severity=low owner=Forge destination=working session unchanged_blocked_streak=0.", markdown)
         self.assertIn("Webhook no-server detected: NO", markdown)
         self.assertIn("Any webhook endpoint OK: YES", markdown)
         self.assertIn("Checkout contract OK: YES", markdown)

@@ -1148,6 +1148,61 @@ def build_render_escalation_payload(
     }
 
 
+def build_executive_summary_lines(
+    report: dict[str, Any],
+    render_incident_signature: dict[str, Any],
+    escalation_recommendation: dict[str, Any],
+    change_summary: dict[str, Any],
+    missing_required: list[str],
+    ready_for_live_e2e: bool,
+) -> list[str]:
+    app_check = report["public_checks"]["app"]
+    webhook_check = report["public_checks"]["webhook_health"]
+    app_headers = app_check.get("headers", {})
+    webhook_headers = webhook_check.get("headers", {})
+
+    lines = [
+        (
+            "AMS-APP trial signup stack is {}. "
+            "App host returned HTTP {} {} while webhook health returned HTTP {} {}."
+        ).format(
+            "ready for live E2E" if ready_for_live_e2e else "still blocked",
+            app_check.get("status"),
+            app_check.get("reason"),
+            webhook_check.get("status"),
+            webhook_check.get("reason"),
+        ),
+        (
+            "Render evidence: app attachment_state={} with x-render-origin-server={}, webhook attachment_state={} with x-render-routing={}."
+        ).format(
+            render_incident_signature.get("app_host_attachment_state"),
+            app_headers.get("x-render-origin-server") or "None",
+            render_incident_signature.get("webhook_host_attachment_state"),
+            webhook_headers.get("x-render-routing") or "None",
+        ),
+        render_incident_signature.get("conclusion"),
+    ]
+
+    if missing_required:
+        lines.append(
+            "Live verification shell still needs secrets before the final Stripe run: "
+            + ", ".join(missing_required)
+        )
+    else:
+        lines.append("Live verification shell has the required secrets for the final Stripe run.")
+
+    lines.append(
+        "Escalation: severity={} owner={} destination={} unchanged_blocked_streak={}.".format(
+            escalation_recommendation.get("severity"),
+            escalation_recommendation.get("owner"),
+            escalation_recommendation.get("destination"),
+            change_summary.get("unchanged_blocked_streak", 0),
+        )
+    )
+    lines.append(escalation_recommendation.get("recommended_message"))
+    return lines
+
+
 def build_recovery_exit_criteria(
     report: dict[str, Any],
     render_incident_signature: dict[str, Any],
@@ -1428,6 +1483,23 @@ def generate_report(previous_report: dict[str, Any] | None = None) -> dict[str, 
         change_summary,
         missing_required,
     )
+    ready_for_live_e2e = (
+        report["public_checks"]["app"]["ok"]
+        and report["public_checks"]["webhook_health"]["ok"]
+        and report["local_checks"]["webhook_health_route"]["ok"]
+        and report["local_checks"]["checkout_contract"]["ok"]
+        and report["local_checks"]["render_blueprint"]["ok"]
+        and report["local_checks"]["webhook_service_contract"]["ok"]
+        and not missing_required
+    )
+    executive_summary_lines = build_executive_summary_lines(
+        report,
+        render_incident_signature,
+        escalation_recommendation,
+        change_summary,
+        missing_required,
+        ready_for_live_e2e,
+    )
     render_escalation_message = build_render_escalation_message(
         report,
         render_support_packet,
@@ -1440,15 +1512,6 @@ def generate_report(previous_report: dict[str, Any] | None = None) -> dict[str, 
         change_summary,
         escalation_recommendation,
         missing_required,
-    )
-    ready_for_live_e2e = (
-        report["public_checks"]["app"]["ok"]
-        and report["public_checks"]["webhook_health"]["ok"]
-        and report["local_checks"]["webhook_health_route"]["ok"]
-        and report["local_checks"]["checkout_contract"]["ok"]
-        and report["local_checks"]["render_blueprint"]["ok"]
-        and report["local_checks"]["webhook_service_contract"]["ok"]
-        and not missing_required
     )
 
     report["summary"] = {
@@ -1487,6 +1550,7 @@ def generate_report(previous_report: dict[str, Any] | None = None) -> dict[str, 
         "change_summary": change_summary,
         "incident_history": incident_history,
         "escalation_recommendation": escalation_recommendation,
+        "executive_summary_lines": executive_summary_lines,
     }
     return report
 
@@ -1524,6 +1588,11 @@ def render_markdown_report(report: dict[str, Any]) -> str:
         f"Generated at: {report['generated_at']}",
         f"Ready for live e2e: {'YES' if summary['ready_for_live_e2e'] else 'NO'}",
         "",
+        "## Executive summary",
+    ]
+    lines.extend(f"- {line}" for line in summary["executive_summary_lines"] or ["None"])
+    lines.extend([
+        "",
         "## Public checks",
         f"- App URL: {report['app_url']} -> {report['public_checks']['app']['status']} {report['public_checks']['app']['reason']}",
         f"- Webhook health: {report['webhook_health_url']} -> {report['public_checks']['webhook_health']['status']} {report['public_checks']['webhook_health']['reason']}",
@@ -1546,7 +1615,7 @@ def render_markdown_report(report: dict[str, Any]) -> str:
         f"- Webhook service contract payload: {report['local_checks']['webhook_service_contract']['payload']}",
         "",
         "## Missing required env vars",
-    ]
+    ])
     lines.extend(f"- {name}" for name in missing)
     lines.extend(
         [
