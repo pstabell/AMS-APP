@@ -760,6 +760,27 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
         self.assertIn("Probe both public hostnames after deploy", playbook[2])
         self.assertTrue(playbook[-1].endswith("ready_for_live_e2e flips to true."))
 
+    def test_build_recovery_exit_criteria_lists_resolution_gate_for_external_render_outage(self):
+        report = {
+            "app_url": "https://commission-tracker-app.onrender.com",
+            "webhook_base_url": "https://commission-tracker-webhook.onrender.com",
+        }
+        incident_signature = {
+            "external_routing_issue": True,
+        }
+
+        criteria = smoke.build_recovery_exit_criteria(
+            report,
+            incident_signature,
+            ["STRIPE_SECRET_KEY", "RESEND_API_KEY"],
+        )
+
+        self.assertIn("commission-tracker-app.onrender.com/ returns HTTP 200", criteria[0])
+        self.assertTrue(any("commission-tracker-webhook.onrender.com/health returns HTTP 200 without x-render-routing=no-server" in step for step in criteria))
+        self.assertTrue(any("attached to commission-tracker-webhook in Render" in step for step in criteria))
+        self.assertTrue(any("STRIPE_SECRET_KEY, RESEND_API_KEY" in step for step in criteria))
+        self.assertTrue(criteria[-1].startswith("One real Stripe test-mode signup completes"))
+
     def test_check_render_blueprint_reports_expected_services(self):
         render_yaml = """
 services:
@@ -1091,6 +1112,7 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertIn("## Escalation recommendation", markdown)
         self.assertIn("## Owner action plan", markdown)
         self.assertIn("## Render recovery playbook", markdown)
+        self.assertIn("## Recovery exit criteria", markdown)
         self.assertIn("## Render escalation message", markdown)
         self.assertIn("## Render escalation payload", markdown)
         self.assertIn("Render support request for AMS-APP webhook routing outage.", markdown)
@@ -1150,6 +1172,7 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertIn("render_support", payload["summary"]["owner_action_plan"])
         self.assertIn("verification_shell", payload["summary"]["owner_action_plan"])
         self.assertIn("Render support request for AMS-APP webhook routing outage.", payload["summary"]["render_escalation_message"])
+        self.assertTrue(any("ready_for_live_e2e=true" in step or "ready_for_live_e2e flips to true" in step or "ready_for_live_e2e=true." in step for step in payload["summary"]["recovery_exit_criteria"]))
         self.assertEqual(
             payload["summary"]["render_escalation_payload"]["ticket_title"],
             "AMS-APP Render webhook routing outage blocks live Stripe signup path",

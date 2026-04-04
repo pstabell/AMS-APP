@@ -1,6 +1,6 @@
 # Trial Signup Smoke Check Snapshot
 
-Generated at: 2026-04-04T09:18:55.802234+00:00
+Generated at: 2026-04-04T11:15:44.738973+00:00
 Ready for live e2e: NO
 
 ## Public checks
@@ -134,7 +134,7 @@ PY
 - curl -i https://commission-tracker-webhook.onrender.com/test
 
 ## Change summary versus previous smoke check
-- Previous artifact generated at: 2026-04-04T09:18:03.007424+00:00
+- Previous artifact generated at: 2026-04-04T09:18:55.802234+00:00
 - Material change detected: YES
 - Unchanged blocked streak: 0
 - ready_for_live_e2e changed from False to None.
@@ -160,8 +160,8 @@ PY
 ## Render support packet
 - Incident type: render-webhook-routing-outage
 - Requested action: Confirm the webhook hostname is attached to commission-tracker-webhook, redeploy the service, and recheck /health until x-render-routing=no-server disappears.
-- commission-tracker-app: host=commission-tracker-app.onrender.com; probe_path=/; status=200 OK; attachment_state=healthy-attached; x-render-origin-server=TornadoServer/6.5.5; x-render-routing=None; cf-ray=9e6f3a7f5bc1c946-IAD; date=Sat, 04 Apr 2026 09:18:55 GMT
-- commission-tracker-webhook: host=commission-tracker-webhook.onrender.com; probe_path=/health; status=404 Not Found; attachment_state=missing-backend-attachment; x-render-origin-server=None; x-render-routing=no-server; cf-ray=9e6f3a7fcf3fe63f-IAD; date=Sat, 04 Apr 2026 09:18:56 GMT
+- commission-tracker-app: host=commission-tracker-app.onrender.com; probe_path=/; status=200 OK; attachment_state=healthy-attached; x-render-origin-server=TornadoServer/6.5.5; x-render-routing=None; cf-ray=9e6fe59d6a3cd62f-IAD; date=Sat, 04 Apr 2026 11:15:44 GMT
+- commission-tracker-webhook: host=commission-tracker-webhook.onrender.com; probe_path=/health; status=404 Not Found; attachment_state=missing-backend-attachment; x-render-origin-server=None; x-render-routing=no-server; cf-ray=9e6fe59e2e3d0833-IAD; date=Sat, 04 Apr 2026 11:15:45 GMT
 
 ## Escalation recommendation
 - Severity: high
@@ -199,9 +199,19 @@ PY
 - 7. Before the real signup test, load the remaining live E2E secrets into the verification shell: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_ID, RESEND_API_KEY, SUPABASE_SERVICE_KEY
 - 8. Re-run python3 scripts/trial_signup_smoke_check.py and only run a real Stripe test-mode signup after ready_for_live_e2e flips to true.
 
+## Recovery exit criteria
+- commission-tracker-app.onrender.com/ returns HTTP 200 from the public app host.
+- commission-tracker-webhook.onrender.com/health returns HTTP 200 without x-render-routing=no-server.
+- The local webhook /health import check returns HTTP 200 from webhook_server.py.
+- The checked-in checkout, webhook service, and Render blueprint contract checks all remain green.
+- The webhook hostname is attached to commission-tracker-webhook in Render and shows a healthy backend instance.
+- The verification shell has the live Stripe, Resend, and Supabase secrets loaded: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_ID, RESEND_API_KEY, SUPABASE_SERVICE_KEY
+- A fresh smoke-check artifact reports ready_for_live_e2e=true.
+- One real Stripe test-mode signup completes and the follow-up evidence captures the session ID, webhook timestamp, and onboarding email result.
+
 ## Render escalation message
 Render support request for AMS-APP webhook routing outage.
-Generated at 2026-04-04T09:18:55.802234+00:00.
+Generated at 2026-04-04T11:15:44.738973+00:00.
 Repo-side checkout, webhook, and Render blueprint contracts are green while the app hostname is healthy-attached and the webhook hostname is missing-backend-attachment. This points to an external Render service or domain binding problem, not an app-code route regression.
 Healthy app host evidence: commission-tracker-app.onrender.com/ -> HTTP 200 OK with attachment_state=healthy-attached and x-render-origin-server=TornadoServer/6.5.5.
 Broken webhook host evidence: commission-tracker-webhook.onrender.com/health -> HTTP 404 Not Found with attachment_state=missing-backend-attachment and x-render-routing=no-server.
@@ -221,7 +231,7 @@ Recommended recovery steps:
 - severity: high
 - owner: Traction
 - destination: Render support
-- generated_at: 2026-04-04T09:18:55.802234+00:00
+- generated_at: 2026-04-04T11:15:44.738973+00:00
 - incident_type: render-webhook-routing-outage
 - unchanged_blocked_streak: 0
 - repo_contract_ok: True

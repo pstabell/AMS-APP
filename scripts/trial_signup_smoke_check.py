@@ -1030,6 +1030,43 @@ def build_render_escalation_payload(
     }
 
 
+def build_recovery_exit_criteria(
+    report: dict[str, Any],
+    render_incident_signature: dict[str, Any],
+    missing_required: list[str],
+) -> list[str]:
+    webhook_host = report["webhook_base_url"].replace("https://", "").replace("http://", "").rstrip("/")
+    app_host = report["app_url"].replace("https://", "").replace("http://", "").rstrip("/")
+
+    criteria = [
+        f"{app_host}/ returns HTTP 200 from the public app host.",
+        f"{webhook_host}/health returns HTTP 200 without x-render-routing=no-server.",
+        "The local webhook /health import check returns HTTP 200 from webhook_server.py.",
+        "The checked-in checkout, webhook service, and Render blueprint contract checks all remain green.",
+    ]
+
+    if render_incident_signature.get("external_routing_issue"):
+        criteria.append(
+            "The webhook hostname is attached to commission-tracker-webhook in Render and shows a healthy backend instance."
+        )
+
+    if missing_required:
+        criteria.append(
+            "The verification shell has the live Stripe, Resend, and Supabase secrets loaded: "
+            + ", ".join(missing_required)
+        )
+    else:
+        criteria.append("The verification shell already has the live Stripe, Resend, and Supabase secrets loaded.")
+
+    criteria.extend(
+        [
+            "A fresh smoke-check artifact reports ready_for_live_e2e=true.",
+            "One real Stripe test-mode signup completes and the follow-up evidence captures the session ID, webhook timestamp, and onboarding email result.",
+        ]
+    )
+    return criteria
+
+
 def build_owner_action_plan(
     report: dict[str, Any],
     render_support_packet: dict[str, Any],
@@ -1260,6 +1297,11 @@ def generate_report(previous_report: dict[str, Any] | None = None) -> dict[str, 
         render_service_env_gap,
         missing_required,
     )
+    recovery_exit_criteria = build_recovery_exit_criteria(
+        report,
+        render_incident_signature,
+        missing_required,
+    )
     change_summary = build_change_summary(report, previous_report)
     escalation_recommendation = build_escalation_recommendation(
         report,
@@ -1319,6 +1361,7 @@ def generate_report(previous_report: dict[str, Any] | None = None) -> dict[str, 
         "render_support_packet": render_support_packet,
         "owner_action_plan": owner_action_plan,
         "render_recovery_playbook": render_recovery_playbook,
+        "recovery_exit_criteria": recovery_exit_criteria,
         "render_escalation_message": render_escalation_message,
         "render_escalation_payload": render_escalation_payload,
         "ready_for_live_e2e": ready_for_live_e2e,
@@ -1552,6 +1595,14 @@ def render_markdown_report(report: dict[str, Any]) -> str:
         ]
     )
     lines.extend(f"- {step}" for step in summary["render_recovery_playbook"] or ["None"])
+
+    lines.extend(
+        [
+            "",
+            "## Recovery exit criteria",
+        ]
+    )
+    lines.extend(f"- {step}" for step in summary["recovery_exit_criteria"] or ["None"])
 
     lines.extend(
         [
