@@ -9,11 +9,11 @@
 Validate the solo-agent trial signup path from signup form through Stripe checkout configuration, account provisioning webhook behavior, and onboarding email path.
 
 ## Latest Update
-- 2026-04-04 1:15 PM ET: Added `executive_summary_lines` to `scripts/trial_signup_smoke_check.py`, so every fresh JSON and Markdown smoke-check artifact now starts with a short forwardable summary of the live stack state, Render attachment evidence, missing live-test secrets, and the current escalation target.
-- That closes a real handoff gap in the outage workflow: Traction no longer has to rewrite the current diagnosis from deeper sections of the artifact before escalating to Render support.
-- Added regression coverage for the executive summary rollup and Markdown rendering in `test_trial_signup_smoke_check.py`.
+- 2026-04-04 3:16 PM ET: Added `owner_ready_messages` to `scripts/trial_signup_smoke_check.py`, so every fresh JSON and Markdown smoke-check artifact now includes copy-ready handoff text for Traction, Render support, and the verification shell.
+- That closes the last manual forwarding gap in the outage workflow: each owner now gets a short, evidence-backed message they can paste directly without rewriting the packet by hand.
+- Added regression coverage for the new owner-ready handoff messages in `test_trial_signup_smoke_check.py`.
 - Refreshed `docs/smoke-checks/latest-trial-signup-smoke-check.json` and `.md`; fresh live evidence is still unchanged on the external outage itself: `commission-tracker-app.onrender.com` returns HTTP 200 with `x-render-origin-server: TornadoServer/6.5.5`, while every probed webhook path still returns HTTP 404 with `x-render-routing: no-server`.
-- Validation: `python3 -m unittest test_checkout_flow.py test_webhook_subscription_status.py test_trial_signup_smoke_check.py` passed 191/191.
+- Validation: `python3 -m unittest test_checkout_flow.py test_webhook_subscription_status.py test_trial_signup_smoke_check.py` passed 192/192.
 
 ## What Was Verified
 

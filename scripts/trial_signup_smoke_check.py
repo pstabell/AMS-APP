@@ -1292,6 +1292,55 @@ def build_owner_action_plan(
     return plans
 
 
+def build_owner_ready_messages(
+    report: dict[str, Any],
+    render_support_packet: dict[str, Any],
+    owner_action_plan: dict[str, list[str]],
+    missing_required: list[str],
+) -> dict[str, str]:
+    webhook_host = render_support_packet["host_comparison"]["commission-tracker-webhook"]["host"]
+    app_host = render_support_packet["host_comparison"]["commission-tracker-app"]["host"]
+    webhook_probe = render_support_packet["host_comparison"]["commission-tracker-webhook"]
+    app_probe = render_support_packet["host_comparison"]["commission-tracker-app"]
+    generated_at = report["generated_at"]
+
+    traction_message = (
+        f"Traction handoff at {generated_at}: {app_host}{app_probe['probe_path']} is healthy "
+        f"at HTTP {app_probe['status']} while {webhook_host}{webhook_probe['probe_path']} is still "
+        f"HTTP {webhook_probe['status']} with x-render-routing={webhook_probe.get('x_render_routing') or 'None'}. "
+        "Forward the attached Render escalation packet, ask Render to confirm the webhook hostname is "
+        "attached to commission-tracker-webhook, redeploy it, and then have the verification shell rerun the smoke check."
+    )
+
+    render_support_message = (
+        f"Render support request generated {generated_at}: {app_host}{app_probe['probe_path']} is healthy "
+        f"at HTTP {app_probe['status']} with attachment_state={app_probe['attachment_state']}, but "
+        f"{webhook_host}{webhook_probe['probe_path']} is HTTP {webhook_probe['status']} with "
+        f"attachment_state={webhook_probe['attachment_state']} and x-render-routing={webhook_probe.get('x_render_routing') or 'None'}. "
+        "Please confirm commission-tracker-webhook owns the webhook hostname, redeploy the service, and "
+        "retest /health until the route returns 200 without x-render-routing=no-server."
+    )
+
+    verification_shell_message = (
+        "Verification-shell handoff: rerun python3 scripts/trial_signup_smoke_check.py after Render reports the webhook service healthy, "
+        "refresh the JSON and Markdown artifacts, and only run the real Stripe test-mode signup after ready_for_live_e2e turns true."
+    )
+    if missing_required:
+        verification_shell_message += " Missing live E2E secrets: " + ", ".join(missing_required) + "."
+
+    messages = {
+        "traction": traction_message,
+        "render_support": render_support_message,
+        "verification_shell": verification_shell_message,
+    }
+
+    for owner, actions in owner_action_plan.items():
+        if owner in messages and actions:
+            messages[owner] += " Next actions: " + " ".join(actions[:2])
+
+    return messages
+
+
 def build_render_recovery_playbook(
     report: dict[str, Any],
     render_incident_signature: dict[str, Any],
@@ -1464,6 +1513,12 @@ def generate_report(previous_report: dict[str, Any] | None = None) -> dict[str, 
         render_service_env_gap,
         missing_required,
     )
+    owner_ready_messages = build_owner_ready_messages(
+        report,
+        render_support_packet,
+        owner_action_plan,
+        missing_required,
+    )
     render_recovery_playbook = build_render_recovery_playbook(
         report,
         render_incident_signature,
@@ -1542,6 +1597,7 @@ def generate_report(previous_report: dict[str, Any] | None = None) -> dict[str, 
         "render_incident_signature": render_incident_signature,
         "render_support_packet": render_support_packet,
         "owner_action_plan": owner_action_plan,
+        "owner_ready_messages": owner_ready_messages,
         "render_recovery_playbook": render_recovery_playbook,
         "recovery_exit_criteria": recovery_exit_criteria,
         "render_escalation_message": render_escalation_message,
@@ -1788,6 +1844,15 @@ def render_markdown_report(report: dict[str, Any]) -> str:
         lines.append(f"- {owner}:")
         for action in actions:
             lines.append(f"  - {action}")
+
+    lines.extend(
+        [
+            "",
+            "## Owner ready messages",
+        ]
+    )
+    for owner, message in summary["owner_ready_messages"].items():
+        lines.append(f"- {owner}: {message}")
 
     lines.extend(
         [

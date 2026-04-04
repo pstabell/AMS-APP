@@ -255,6 +255,47 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
         self.assertEqual(details["commission-tracker-webhook"]["x_render_routing"], "no-server")
         self.assertIn("HTTP 404", details["commission-tracker-webhook"]["evidence"])
 
+    def test_build_owner_ready_messages_generates_forwardable_handoffs(self):
+        report = {
+            "generated_at": "2026-04-04T19:14:00+00:00",
+        }
+        render_support_packet = {
+            "host_comparison": {
+                "commission-tracker-app": {
+                    "host": "commission-tracker-app.onrender.com",
+                    "probe_path": "/",
+                    "status": 200,
+                    "attachment_state": "healthy-attached",
+                },
+                "commission-tracker-webhook": {
+                    "host": "commission-tracker-webhook.onrender.com",
+                    "probe_path": "/health",
+                    "status": 404,
+                    "attachment_state": "missing-backend-attachment",
+                    "x_render_routing": "no-server",
+                },
+            }
+        }
+        owner_action_plan = {
+            "traction": ["Forward the Render escalation message.", "Ask Render to redeploy the service."],
+            "render_support": ["Confirm hostname attachment.", "Recheck /health until 200."],
+            "verification_shell": ["Rerun the smoke check.", "Refresh the artifacts."],
+        }
+
+        messages = smoke.build_owner_ready_messages(
+            report,
+            render_support_packet,
+            owner_action_plan,
+            ["STRIPE_SECRET_KEY", "RESEND_API_KEY"],
+        )
+
+        self.assertIn("Traction handoff", messages["traction"])
+        self.assertIn("commission-tracker-webhook.onrender.com/health is still HTTP 404", messages["traction"])
+        self.assertIn("Render support request generated 2026-04-04T19:14:00+00:00", messages["render_support"])
+        self.assertIn("x-render-routing=no-server", messages["render_support"])
+        self.assertIn("Missing live E2E secrets: STRIPE_SECRET_KEY, RESEND_API_KEY.", messages["verification_shell"])
+        self.assertIn("Next actions: Rerun the smoke check. Refresh the artifacts.", messages["verification_shell"])
+
     def test_build_incident_history_tracks_first_blocked_and_no_server_windows(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = pathlib.Path(tmpdir)
