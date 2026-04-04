@@ -854,6 +854,61 @@ def build_render_incident_signature(report: dict[str, Any], render_hostname_diag
     }
 
 
+def build_escalation_recommendation(
+    report: dict[str, Any],
+    render_incident_signature: dict[str, Any],
+    change_summary: dict[str, Any],
+) -> dict[str, Any]:
+    unchanged_blocked_streak = change_summary.get("unchanged_blocked_streak", 0)
+    local_webhook_ok = report["local_checks"]["webhook_health_route"]["ok"]
+    missing_required = report.get("summary", {}).get("missing_required_env_vars", [])
+
+    if render_incident_signature.get("external_routing_issue"):
+        owner = "Traction"
+        destination = "Render support"
+        if unchanged_blocked_streak >= 3:
+            severity = "critical"
+            urgency = "Escalate immediately. The outage is externally isolated and has repeated without material recovery."
+        elif unchanged_blocked_streak >= 1:
+            severity = "high"
+            urgency = "Escalate now. The outage repeated with no material recovery since the previous smoke check."
+        else:
+            severity = "high"
+            urgency = "Escalate now. The outage is externally isolated to Render routing or domain attachment."
+    elif not local_webhook_ok:
+        owner = "Forge"
+        destination = "local verification shell"
+        severity = "medium"
+        urgency = "Fix the local webhook verification environment before trusting parity conclusions."
+    else:
+        owner = "Forge"
+        destination = "working session"
+        severity = "low"
+        urgency = "No escalation is required yet. Continue verification work in the repo."
+
+    if missing_required:
+        prerequisite = (
+            "Live E2E shell still needs secrets before the final Stripe confirmation: "
+            + ", ".join(missing_required)
+        )
+    else:
+        prerequisite = "Live E2E shell prerequisites are satisfied."
+
+    return {
+        "severity": severity,
+        "owner": owner,
+        "destination": destination,
+        "unchanged_blocked_streak": unchanged_blocked_streak,
+        "urgency": urgency,
+        "prerequisite": prerequisite,
+        "recommended_message": (
+            f"{owner} should escalate to {destination}. {urgency} {prerequisite}"
+            if severity != "low"
+            else urgency
+        ),
+    }
+
+
 def build_render_support_packet(
     report: dict[str, Any],
     render_hostname_diagnostics: dict[str, dict[str, Any]],
@@ -1206,7 +1261,13 @@ def generate_report(previous_report: dict[str, Any] | None = None) -> dict[str, 
         "render_escalation_message": render_escalation_message,
         "ready_for_live_e2e": ready_for_live_e2e,
     }
-    report["summary"]["change_summary"] = build_change_summary(report, previous_report)
+    change_summary = build_change_summary(report, previous_report)
+    report["summary"]["change_summary"] = change_summary
+    report["summary"]["escalation_recommendation"] = build_escalation_recommendation(
+        report,
+        render_incident_signature,
+        change_summary,
+    )
     return report
 
 
@@ -1403,7 +1464,22 @@ def render_markdown_report(report: dict[str, Any]) -> str:
             )
         )
 
-    lines.extend(["", "## Owner action plan"])
+    escalation = summary["escalation_recommendation"]
+    lines.extend(
+        [
+            "",
+            "## Escalation recommendation",
+            f"- Severity: {escalation['severity']}",
+            f"- Owner: {escalation['owner']}",
+            f"- Destination: {escalation['destination']}",
+            f"- Unchanged blocked streak: {escalation['unchanged_blocked_streak']}",
+            f"- Urgency: {escalation['urgency']}",
+            f"- Prerequisite: {escalation['prerequisite']}",
+            f"- Recommended message: {escalation['recommended_message']}",
+            "",
+            "## Owner action plan",
+        ]
+    )
     for owner, actions in summary["owner_action_plan"].items():
         lines.append(f"- {owner}:")
         for action in actions:

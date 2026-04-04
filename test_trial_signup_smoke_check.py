@@ -424,6 +424,55 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
         self.assertEqual(details["webhook_host_attachment_state"], "missing-backend-attachment")
         self.assertIn("external Render service or domain binding problem", details["conclusion"])
 
+    def test_build_escalation_recommendation_marks_repeated_external_outage_high_or_critical(self):
+        report = {
+            "local_checks": {
+                "webhook_health_route": {"ok": False},
+            },
+            "summary": {
+                "missing_required_env_vars": ["STRIPE_SECRET_KEY", "RESEND_API_KEY"],
+            },
+        }
+        incident_signature = {
+            "external_routing_issue": True,
+        }
+        change_summary = {
+            "unchanged_blocked_streak": 3,
+        }
+
+        recommendation = smoke.build_escalation_recommendation(report, incident_signature, change_summary)
+
+        self.assertEqual(recommendation["severity"], "critical")
+        self.assertEqual(recommendation["owner"], "Traction")
+        self.assertEqual(recommendation["destination"], "Render support")
+        self.assertEqual(recommendation["unchanged_blocked_streak"], 3)
+        self.assertIn("Escalate immediately", recommendation["urgency"])
+        self.assertIn("STRIPE_SECRET_KEY", recommendation["prerequisite"])
+        self.assertIn("Traction should escalate to Render support", recommendation["recommended_message"])
+
+    def test_build_escalation_recommendation_prefers_local_fix_when_not_externally_isolated(self):
+        report = {
+            "local_checks": {
+                "webhook_health_route": {"ok": False},
+            },
+            "summary": {
+                "missing_required_env_vars": [],
+            },
+        }
+        incident_signature = {
+            "external_routing_issue": False,
+        }
+        change_summary = {
+            "unchanged_blocked_streak": 0,
+        }
+
+        recommendation = smoke.build_escalation_recommendation(report, incident_signature, change_summary)
+
+        self.assertEqual(recommendation["severity"], "medium")
+        self.assertEqual(recommendation["owner"], "Forge")
+        self.assertEqual(recommendation["destination"], "local verification shell")
+        self.assertIn("Fix the local webhook verification environment", recommendation["urgency"])
+
     def test_build_render_support_packet_captures_host_asymmetry_and_probe_headers(self):
         report = {
             "generated_at": "2026-04-03T17:14:00+00:00",
@@ -932,10 +981,13 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertIn("- Unchanged blocked streak: 0", markdown)
         self.assertIn("## Render incident signature", markdown)
         self.assertIn("## Render support packet", markdown)
+        self.assertIn("## Escalation recommendation", markdown)
         self.assertIn("## Owner action plan", markdown)
         self.assertIn("## Render recovery playbook", markdown)
         self.assertIn("## Render escalation message", markdown)
         self.assertIn("Render support request for AMS-APP webhook routing outage.", markdown)
+        self.assertIn("- Severity:", markdown)
+        self.assertIn("- Recommended message:", markdown)
         self.assertIn("- traction:", markdown)
         self.assertIn("- render_support:", markdown)
         self.assertIn("- verification_shell:", markdown)
@@ -980,6 +1032,8 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         )
         self.assertEqual(payload["summary"]["render_hostname_diagnostics"]["commission-tracker-app"]["attachment_state"], "healthy-attached")
         self.assertEqual(payload["summary"]["render_support_packet"]["incident_type"], "render-webhook-routing-outage")
+        self.assertEqual(payload["summary"]["escalation_recommendation"]["severity"], "low")
+        self.assertEqual(payload["summary"]["escalation_recommendation"]["owner"], "Forge")
         self.assertIn("traction", payload["summary"]["owner_action_plan"])
         self.assertIn("render_support", payload["summary"]["owner_action_plan"])
         self.assertIn("verification_shell", payload["summary"]["owner_action_plan"])
