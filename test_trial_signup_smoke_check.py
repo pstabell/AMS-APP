@@ -1240,10 +1240,47 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertIn("- commission-tracker-webhook: shell_ready=YES; missing_in_shell=None; missing_in_blueprint=None", markdown)
         self.assertIn("- None", markdown)
 
+    def test_load_previous_report_prefers_json_out_when_available(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            json_out = temp_path / "explicit.json"
+            default_json = temp_path / "latest.json"
+            json_out.write_text(json.dumps({"generated_at": "2026-04-04T10:00:00+00:00", "summary": {"source": "explicit"}}), encoding="utf-8")
+            default_json.write_text(json.dumps({"generated_at": "2026-04-04T09:00:00+00:00", "summary": {"source": "default"}}), encoding="utf-8")
+
+            with mock.patch.object(smoke, "DEFAULT_JSON_ARTIFACT", default_json):
+                report = smoke.load_previous_report(str(json_out))
+
+        self.assertEqual(report["summary"]["source"], "explicit")
+
+    def test_load_previous_report_falls_back_to_default_artifact(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            default_json = temp_path / "latest.json"
+            default_json.write_text(json.dumps({"generated_at": "2026-04-04T09:00:00+00:00", "summary": {"source": "default"}}), encoding="utf-8")
+
+            with mock.patch.object(smoke, "DEFAULT_JSON_ARTIFACT", default_json):
+                report = smoke.load_previous_report()
+
+        self.assertEqual(report["summary"]["source"], "default")
+
+    def test_load_previous_report_skips_invalid_json_and_uses_next_candidate(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            json_out = temp_path / "explicit.json"
+            default_json = temp_path / "latest.json"
+            json_out.write_text("{not-json", encoding="utf-8")
+            default_json.write_text(json.dumps({"generated_at": "2026-04-04T09:00:00+00:00", "summary": {"source": "default"}}), encoding="utf-8")
+
+            with mock.patch.object(smoke, "DEFAULT_JSON_ARTIFACT", default_json):
+                report = smoke.load_previous_report(str(json_out))
+
+        self.assertEqual(report["summary"]["source"], "default")
+
     def test_main_returns_zero_when_stack_is_ready(self):
         report = self._build_ready_report()
 
-        with mock.patch.object(smoke, "generate_report", return_value=report), mock.patch("sys.stdout") as stdout:
+        with mock.patch.object(smoke, "generate_report", return_value=report), mock.patch.object(smoke, "load_previous_report", return_value=None), mock.patch("sys.stdout") as stdout:
             exit_code = smoke.main([])
 
         self.assertEqual(exit_code, 0)
@@ -1293,7 +1330,7 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
             json_path = pathlib.Path(temp_dir) / "report.json"
             markdown_path = pathlib.Path(temp_dir) / "report.md"
 
-            with mock.patch.object(smoke, "generate_report", return_value=report), mock.patch("sys.stdout"):
+            with mock.patch.object(smoke, "generate_report", return_value=report), mock.patch.object(smoke, "load_previous_report", return_value=None), mock.patch("sys.stdout"):
                 exit_code = smoke.main(["--json-out", str(json_path), "--markdown-out", str(markdown_path)])
 
             self.assertEqual(exit_code, 0)
@@ -1377,7 +1414,7 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
                 "requirements": {},
                 "missing_packages": [],
             },
-        ), mock.patch("sys.stdout") as stdout:
+        ), mock.patch.object(smoke, "load_previous_report", return_value=None), mock.patch("sys.stdout") as stdout:
             exit_code = smoke.main([])
 
         self.assertEqual(exit_code, 1)

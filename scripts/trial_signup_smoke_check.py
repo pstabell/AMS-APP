@@ -31,6 +31,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+DEFAULT_JSON_ARTIFACT = ROOT / "docs" / "smoke-checks" / "latest-trial-signup-smoke-check.json"
+
 APP_URL = os.getenv("RENDER_APP_URL", "https://commission-tracker-app.onrender.com")
 WEBHOOK_URL = os.getenv(
     "RENDER_WEBHOOK_URL",
@@ -1783,18 +1785,28 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def load_previous_report(json_out: str | None = None) -> dict[str, Any] | None:
+    candidate_paths: list[Path] = []
+    if json_out:
+        candidate_paths.append(Path(json_out))
+    if DEFAULT_JSON_ARTIFACT not in candidate_paths:
+        candidate_paths.append(DEFAULT_JSON_ARTIFACT)
+
+    for path in candidate_paths:
+        if not path.exists():
+            continue
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
-    previous_report = None
-    if args.json_out:
-        json_out_path = Path(args.json_out)
-        if json_out_path.exists():
-            try:
-                previous_report = json.loads(json_out_path.read_text(encoding="utf-8"))
-            except json.JSONDecodeError:
-                previous_report = None
-
+    previous_report = load_previous_report(args.json_out)
     report = generate_report(previous_report=previous_report)
     payload = json.dumps(report, indent=2, sort_keys=True)
     print(payload)

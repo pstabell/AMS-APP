@@ -9,10 +9,11 @@
 Validate the solo-agent trial signup path from signup form through Stripe checkout configuration, account provisioning webhook behavior, and onboarding email path.
 
 ## Latest Update
-- 2026-04-04 9:17 AM ET: Added `incident_history` to `scripts/trial_signup_smoke_check.py` and refreshed `docs/smoke-checks/latest-trial-signup-smoke-check.json` and `.md`.
-- The smoke-check summary now reports when the blocked pattern first appeared, how many artifacts still show the outage, and how long the webhook has remained blocked with the current Render `x-render-routing=no-server` signature. That gives Traction and Render support immediate outage-age context instead of treating each run like a fresh isolated failure.
-- Fresh live evidence still isolates the outage to external Render routing and domain binding, not repo-side code drift: `commission-tracker-app.onrender.com` returns HTTP 200 with `x-render-origin-server: TornadoServer/6.5.5`, while every probed webhook path still returns HTTP 404 with `x-render-routing: no-server`.
-- Validation: `python3 -m unittest test_checkout_flow.py test_webhook_subscription_status.py test_trial_signup_smoke_check.py` passed 187/187.
+- 2026-04-04 11:15 AM ET: Added automatic previous-artifact loading to `scripts/trial_signup_smoke_check.py`, so ordinary smoke-check runs now compare against `docs/smoke-checks/latest-trial-signup-smoke-check.json` even when `--json-out` is not provided.
+- That closes a real reliability gap in the outage tracking flow: `change_summary` and `incident_history` now stay meaningful during ad hoc verification runs instead of silently losing comparison context unless the operator remembered to point at an existing JSON file.
+- Added regression coverage for explicit artifact precedence, default-artifact fallback, and invalid-JSON fallback behavior in `test_trial_signup_smoke_check.py`.
+- Refreshed `docs/smoke-checks/latest-trial-signup-smoke-check.json` and `.md`; fresh live evidence is still unchanged on the external outage itself: `commission-tracker-app.onrender.com` returns HTTP 200 with `x-render-origin-server: TornadoServer/6.5.5`, while every probed webhook path still returns HTTP 404 with `x-render-routing: no-server`.
+- Validation: `python3 -m unittest test_checkout_flow.py test_webhook_subscription_status.py test_trial_signup_smoke_check.py` passed 190/190.
 
 ## What Was Verified
 
