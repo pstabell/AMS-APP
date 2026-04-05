@@ -34,6 +34,7 @@ if str(ROOT) not in sys.path:
 DEFAULT_JSON_ARTIFACT = ROOT / "docs" / "smoke-checks" / "latest-trial-signup-smoke-check.json"
 DEFAULT_OWNER_READY_DIR = ROOT / "docs" / "smoke-checks" / "owner-ready"
 DEFAULT_OWNER_READY_ARCHIVE_DIR = DEFAULT_OWNER_READY_DIR / "archive"
+DEFAULT_ESCALATION_PACKET_DIR = ROOT / "docs" / "smoke-checks" / "escalation-packet"
 
 APP_URL = os.getenv("RENDER_APP_URL", "https://commission-tracker-app.onrender.com")
 WEBHOOK_URL = os.getenv(
@@ -1348,6 +1349,9 @@ def build_artifact_inventory() -> dict[str, Any]:
         "owner_ready_traction": DEFAULT_OWNER_READY_DIR / "traction.txt",
         "owner_ready_render_support": DEFAULT_OWNER_READY_DIR / "render_support.txt",
         "owner_ready_verification_shell": DEFAULT_OWNER_READY_DIR / "verification_shell.txt",
+        "escalation_packet_message": DEFAULT_ESCALATION_PACKET_DIR / "render-support-message.txt",
+        "escalation_packet_payload": DEFAULT_ESCALATION_PACKET_DIR / "render-support-payload.json",
+        "escalation_packet_manifest": DEFAULT_ESCALATION_PACKET_DIR / "evidence-manifest.json",
     }
 
     inventory: dict[str, Any] = {}
@@ -1365,6 +1369,16 @@ def build_artifact_inventory() -> dict[str, Any]:
         ],
     }
 
+    inventory["escalation_packet_dir"] = {
+        "path": _display_path(DEFAULT_ESCALATION_PACKET_DIR),
+        "exists": DEFAULT_ESCALATION_PACKET_DIR.exists(),
+        "files": [
+            _display_path(path)
+            for path in sorted(DEFAULT_ESCALATION_PACKET_DIR.glob("*"))
+            if path.is_file()
+        ],
+    }
+
     inventory["recommended_attachments"] = [
         "docs/smoke-checks/latest-trial-signup-smoke-check.json",
         "docs/smoke-checks/latest-trial-signup-smoke-check.md",
@@ -1372,18 +1386,26 @@ def build_artifact_inventory() -> dict[str, Any]:
         "render.yaml",
         "docs/smoke-checks/owner-ready/traction.txt",
         "docs/smoke-checks/owner-ready/render_support.txt",
+        "docs/smoke-checks/escalation-packet/render-support-message.txt",
+        "docs/smoke-checks/escalation-packet/render-support-payload.json",
+        "docs/smoke-checks/escalation-packet/evidence-manifest.json",
     ]
     inventory["render_support_packet_files"] = [
         "docs/smoke-checks/latest-trial-signup-smoke-check.json",
         "docs/smoke-checks/latest-trial-signup-smoke-check.md",
         "render.yaml",
         "docs/smoke-checks/owner-ready/render_support.txt",
+        "docs/smoke-checks/escalation-packet/render-support-message.txt",
+        "docs/smoke-checks/escalation-packet/render-support-payload.json",
+        "docs/smoke-checks/escalation-packet/evidence-manifest.json",
     ]
     inventory["traction_handoff_files"] = [
         "docs/TRIAL_SIGNUP_E2E_REPORT_2026-04-01.md",
         "docs/smoke-checks/latest-trial-signup-smoke-check.md",
         "docs/smoke-checks/latest-trial-signup-smoke-check.json",
         "docs/smoke-checks/owner-ready/traction.txt",
+        "docs/smoke-checks/escalation-packet/render-support-message.txt",
+        "docs/smoke-checks/escalation-packet/evidence-manifest.json",
     ]
     return inventory
 
@@ -2059,6 +2081,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--owner-messages-archive-dir",
         help="Optional directory to write timestamped owner handoff snapshots for historical escalation evidence.",
     )
+    parser.add_argument(
+        "--escalation-packet-dir",
+        help="Optional directory to write a send-ready Render escalation packet with message, JSON payload, and evidence manifest.",
+    )
     return parser.parse_args(argv)
 
 
@@ -2112,6 +2138,40 @@ def write_owner_ready_archive(report: dict[str, Any], archive_dir: str) -> list[
     return written_paths
 
 
+def write_escalation_packet(report: dict[str, Any], output_dir: str) -> list[Path]:
+    base_path = Path(output_dir)
+    base_path.mkdir(parents=True, exist_ok=True)
+
+    summary = report.get("summary", {})
+    payload = summary.get("render_escalation_payload", {})
+    message = summary.get("render_escalation_message", "")
+    inventory = summary.get("artifact_inventory", {})
+
+    files_to_write = {
+        "render-support-message.txt": str(message).rstrip() + "\n",
+        "render-support-payload.json": json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        "evidence-manifest.json": json.dumps(
+            {
+                "generated_at": report.get("generated_at"),
+                "recommended_attachments": inventory.get("recommended_attachments", []),
+                "render_support_packet_files": inventory.get("render_support_packet_files", []),
+                "traction_handoff_files": inventory.get("traction_handoff_files", []),
+                "artifact_inventory": inventory,
+            },
+            indent=2,
+            sort_keys=True,
+        ) + "\n",
+    }
+
+    written_paths: list[Path] = []
+    for filename, content in files_to_write.items():
+        target_path = base_path / filename
+        target_path.write_text(content, encoding="utf-8")
+        written_paths.append(target_path)
+
+    return written_paths
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
@@ -2128,6 +2188,15 @@ def main(argv: list[str] | None = None) -> int:
         write_owner_ready_messages(report, args.owner_messages_dir)
     if args.owner_messages_archive_dir:
         write_owner_ready_archive(report, args.owner_messages_archive_dir)
+    if args.escalation_packet_dir:
+        write_escalation_packet(report, args.escalation_packet_dir)
+
+    report["summary"]["artifact_inventory"] = build_artifact_inventory()
+    refreshed_payload = json.dumps(report, indent=2, sort_keys=True)
+    if args.json_out:
+        Path(args.json_out).write_text(refreshed_payload + "\n", encoding="utf-8")
+    if args.markdown_out:
+        Path(args.markdown_out).write_text(render_markdown_report(report), encoding="utf-8")
 
     return 0 if report["summary"]["ready_for_live_e2e"] else 1
 

@@ -1,0 +1,22 @@
+{
+  "app_host_evidence": "commission-tracker-app.onrender.com/ -> HTTP 200 OK attachment_state=healthy-attached x-render-origin-server=TornadoServer/6.5.5",
+  "destination": "Render support",
+  "external_routing_issue": true,
+  "generated_at": "2026-04-05T07:18:24.282951+00:00",
+  "incident_type": "render-webhook-routing-outage",
+  "missing_live_e2e_secrets": [
+    "STRIPE_SECRET_KEY",
+    "STRIPE_WEBHOOK_SECRET",
+    "STRIPE_PRICE_ID",
+    "RESEND_API_KEY",
+    "SUPABASE_SERVICE_KEY"
+  ],
+  "owner": "Traction",
+  "recommended_message": "Traction should escalate to Render support. Escalate immediately. The outage is externally isolated and has repeated without material recovery. Live E2E shell still needs secrets before the final Stripe confirmation: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_ID, RESEND_API_KEY, SUPABASE_SERVICE_KEY",
+  "repo_contract_ok": true,
+  "requested_action": "Confirm the webhook hostname is attached to commission-tracker-webhook, redeploy the service, and recheck /health until x-render-routing=no-server disappears.",
+  "severity": "critical",
+  "ticket_title": "AMS-APP Render webhook routing outage blocks live Stripe signup path",
+  "unchanged_blocked_streak": 11,
+  "webhook_host_evidence": "commission-tracker-webhook.onrender.com/health -> HTTP 404 Not Found attachment_state=missing-backend-attachment x-render-routing=no-server"
+}

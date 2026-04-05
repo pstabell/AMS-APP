@@ -283,7 +283,7 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
             (root / "scripts" / "trial_signup_smoke_check.py").write_text("print('ok')\n", encoding="utf-8")
             (root / "test_trial_signup_smoke_check.py").write_text("pass\n", encoding="utf-8")
 
-            with mock.patch.object(smoke, "ROOT", root):
+            with mock.patch.object(smoke, "ROOT", root), mock.patch.object(smoke, "DEFAULT_OWNER_READY_DIR", root / "docs" / "smoke-checks" / "owner-ready"), mock.patch.object(smoke, "DEFAULT_OWNER_READY_ARCHIVE_DIR", root / "docs" / "smoke-checks" / "owner-ready" / "archive"), mock.patch.object(smoke, "DEFAULT_ESCALATION_PACKET_DIR", root / "docs" / "smoke-checks" / "escalation-packet"):
                 inventory = smoke.build_artifact_inventory()
 
         self.assertEqual(inventory["latest_json"]["path"], "docs/smoke-checks/latest-trial-signup-smoke-check.json")
@@ -299,13 +299,17 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
                 "render.yaml",
                 "docs/smoke-checks/owner-ready/traction.txt",
                 "docs/smoke-checks/owner-ready/render_support.txt",
+                "docs/smoke-checks/escalation-packet/render-support-message.txt",
+                "docs/smoke-checks/escalation-packet/render-support-payload.json",
+                "docs/smoke-checks/escalation-packet/evidence-manifest.json",
             ],
         )
         self.assertIn("render.yaml", inventory["render_support_packet_files"])
         self.assertIn("docs/smoke-checks/owner-ready/render_support.txt", inventory["render_support_packet_files"])
-        self.assertIn("docs/smoke-checks/latest-trial-signup-smoke-check.md", inventory["traction_handoff_files"])
-        self.assertIn("docs/smoke-checks/owner-ready/traction.txt", inventory["traction_handoff_files"])
+        self.assertIn("docs/smoke-checks/escalation-packet/render-support-message.txt", inventory["render_support_packet_files"])
+        self.assertIn("docs/smoke-checks/escalation-packet/evidence-manifest.json", inventory["traction_handoff_files"])
         self.assertEqual(inventory["owner_ready_archive"]["file_count"], 0)
+        self.assertFalse(inventory["escalation_packet_dir"]["exists"])
 
     def test_build_owner_ready_messages_generates_forwardable_handoffs(self):
         report = {
@@ -1575,6 +1579,38 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
                 (pathlib.Path(temp_dir) / "2026-04-05T05-14-58-289624-00-00-traction.txt").read_text(encoding="utf-8"),
             )
 
+    def test_write_escalation_packet_writes_send_ready_files(self):
+        report = self._build_ready_report()
+        report["generated_at"] = "2026-04-05T05:14:58.289624+00:00"
+        report["summary"]["artifact_inventory"] = {
+            "recommended_attachments": ["docs/smoke-checks/latest-trial-signup-smoke-check.json"],
+            "render_support_packet_files": ["render.yaml"],
+            "traction_handoff_files": ["docs/TRIAL_SIGNUP_E2E_REPORT_2026-04-01.md"],
+        }
+        report["summary"]["render_escalation_message"] = "Render support request body"
+        report["summary"]["render_escalation_payload"] = {"ticket_title": "Webhook routing outage", "severity": "critical"}
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            written_paths = smoke.write_escalation_packet(report, temp_dir)
+            written_names = sorted(path.name for path in written_paths)
+            self.assertEqual(
+                written_names,
+                [
+                    "evidence-manifest.json",
+                    "render-support-message.txt",
+                    "render-support-payload.json",
+                ],
+            )
+            self.assertEqual(
+                (pathlib.Path(temp_dir) / "render-support-message.txt").read_text(encoding="utf-8"),
+                "Render support request body\n",
+            )
+            payload = json.loads((pathlib.Path(temp_dir) / "render-support-payload.json").read_text(encoding="utf-8"))
+            self.assertEqual(payload["ticket_title"], "Webhook routing outage")
+            manifest = json.loads((pathlib.Path(temp_dir) / "evidence-manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["generated_at"], "2026-04-05T05:14:58.289624+00:00")
+            self.assertIn("render.yaml", manifest["render_support_packet_files"])
+
     def test_main_can_write_json_markdown_and_owner_message_outputs(self):
         report = self._build_ready_report()
         report["generated_at"] = "2026-04-05T05:14:58.289624+00:00"
@@ -1584,6 +1620,7 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
             markdown_path = pathlib.Path(temp_dir) / "report.md"
             owner_dir = pathlib.Path(temp_dir) / "owner-messages"
             archive_dir = pathlib.Path(temp_dir) / "owner-messages-archive"
+            escalation_dir = pathlib.Path(temp_dir) / "escalation-packet"
 
             with mock.patch.object(smoke, "generate_report", return_value=report), mock.patch.object(smoke, "load_previous_report", return_value=None), mock.patch("sys.stdout"):
                 exit_code = smoke.main([
@@ -1595,6 +1632,8 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
                     str(owner_dir),
                     "--owner-messages-archive-dir",
                     str(archive_dir),
+                    "--escalation-packet-dir",
+                    str(escalation_dir),
                 ])
 
             self.assertEqual(exit_code, 0)
@@ -1604,6 +1643,9 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
             self.assertTrue((owner_dir / "render_support.txt").exists())
             self.assertTrue((owner_dir / "verification_shell.txt").exists())
             self.assertTrue((archive_dir / "2026-04-05T05-14-58-289624-00-00-traction.txt").exists())
+            self.assertTrue((escalation_dir / "render-support-message.txt").exists())
+            self.assertTrue((escalation_dir / "render-support-payload.json").exists())
+            self.assertTrue((escalation_dir / "evidence-manifest.json").exists())
             self.assertTrue(json.loads(json_path.read_text())["summary"]["ready_for_live_e2e"])
             self.assertIn("Trial Signup Smoke Check Snapshot", markdown_path.read_text())
 
