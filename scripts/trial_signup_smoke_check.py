@@ -23,6 +23,7 @@ import re
 import sys
 import urllib.error
 import urllib.request
+import zipfile
 from datetime import datetime, timezone
 from glob import glob
 from pathlib import Path
@@ -1347,7 +1348,16 @@ def build_escalation_packet_archive_file_paths(report: dict[str, Any], archive_d
         "render-support-payload.json": base_path / f"{slug}-render-support-payload.json",
         "evidence-manifest.json": base_path / f"{slug}-evidence-manifest.json",
         "README.txt": base_path / f"{slug}-README.txt",
+        "escalation-packet.zip": base_path / f"{slug}-escalation-packet.zip",
     }
+
+
+def write_escalation_packet_bundle(bundle_path: Path, file_contents: dict[str, str]) -> Path:
+    bundle_path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(bundle_path, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+        for filename, content in file_contents.items():
+            bundle.writestr(filename, content)
+    return bundle_path
 
 
 def build_escalation_packet_hashes(report: dict[str, Any], file_contents: dict[str, str]) -> dict[str, dict[str, Any]]:
@@ -1435,10 +1445,11 @@ def build_escalation_packet_readme(report: dict[str, Any]) -> str:
     lines.extend([
         "",
         "If forwarding to Render support:",
-        "1. Send render-support-message.txt as the support message body.",
-        "2. Attach render-support-payload.json and evidence-manifest.json.",
-        "3. Include the latest smoke-check JSON/Markdown artifacts and render.yaml from the packet file list above.",
-        "4. If packet integrity is questioned later, compare the attached files against the sha256 hashes listed above.",
+        "1. Use escalation-packet.zip if the support channel accepts a single attachment, or send the individual files below.",
+        "2. Send render-support-message.txt as the support message body.",
+        "3. Attach render-support-payload.json and evidence-manifest.json.",
+        "4. Include the latest smoke-check JSON/Markdown artifacts and render.yaml from the packet file list above.",
+        "5. If packet integrity is questioned later, compare the attached files against the sha256 hashes listed above.",
     ])
 
     return "\n".join(lines).rstrip() + "\n"
@@ -1486,6 +1497,7 @@ def build_artifact_inventory() -> dict[str, Any]:
             if path.is_file()
         ],
     }
+    inventory["escalation_packet_bundle"] = _artifact_metadata(DEFAULT_ESCALATION_PACKET_DIR / "escalation-packet.zip")
 
     escalation_archive_files = sorted(DEFAULT_ESCALATION_PACKET_ARCHIVE_DIR.glob("*")) if DEFAULT_ESCALATION_PACKET_ARCHIVE_DIR.exists() else []
     inventory["escalation_packet_archive"] = {
@@ -1509,6 +1521,7 @@ def build_artifact_inventory() -> dict[str, Any]:
         "docs/smoke-checks/escalation-packet/render-support-payload.json",
         "docs/smoke-checks/escalation-packet/evidence-manifest.json",
         "docs/smoke-checks/escalation-packet/README.txt",
+        "docs/smoke-checks/escalation-packet/escalation-packet.zip",
     ]
     inventory["render_support_packet_files"] = [
         "docs/smoke-checks/latest-trial-signup-smoke-check.json",
@@ -1519,6 +1532,7 @@ def build_artifact_inventory() -> dict[str, Any]:
         "docs/smoke-checks/escalation-packet/render-support-payload.json",
         "docs/smoke-checks/escalation-packet/evidence-manifest.json",
         "docs/smoke-checks/escalation-packet/README.txt",
+        "docs/smoke-checks/escalation-packet/escalation-packet.zip",
     ]
     inventory["traction_handoff_files"] = [
         "docs/TRIAL_SIGNUP_E2E_REPORT_2026-04-01.md",
@@ -2340,6 +2354,7 @@ def write_escalation_packet(report: dict[str, Any], output_dir: str) -> list[Pat
         target_path.write_text(content, encoding="utf-8")
         written_paths.append(target_path)
 
+    written_paths.append(write_escalation_packet_bundle(base_path / "escalation-packet.zip", files_to_write))
     return written_paths
 
 
@@ -2354,6 +2369,9 @@ def write_escalation_packet_archive(report: dict[str, Any], archive_dir: str) ->
 
     written_paths: list[Path] = []
     for filename, target_path in archive_paths.items():
+        if filename == "escalation-packet.zip":
+            written_paths.append(write_escalation_packet_bundle(target_path, files_to_write))
+            continue
         content = files_to_write.get(filename)
         if content is None:
             continue

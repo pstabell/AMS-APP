@@ -1,5 +1,5 @@
 AMS-APP Render Escalation Packet
-Generated at: 2026-04-05T17:17:46.451097+00:00
+Generated at: 2026-04-05T17:14:52.166876+00:00
 Severity: critical
 Owner: Traction
 Destination: Render support
@@ -19,7 +19,6 @@ Recommended packet files:
 - docs/smoke-checks/escalation-packet/render-support-payload.json
 - docs/smoke-checks/escalation-packet/evidence-manifest.json
 - docs/smoke-checks/escalation-packet/README.txt
-- docs/smoke-checks/escalation-packet/escalation-packet.zip
 
 Broader recommended attachments:
 - docs/smoke-checks/latest-trial-signup-smoke-check.json
@@ -32,7 +31,6 @@ Broader recommended attachments:
 - docs/smoke-checks/escalation-packet/render-support-payload.json
 - docs/smoke-checks/escalation-packet/evidence-manifest.json
 - docs/smoke-checks/escalation-packet/README.txt
-- docs/smoke-checks/escalation-packet/escalation-packet.zip
 
 Live verification shell still needs these secrets before the final Stripe test:
 - STRIPE_SECRET_KEY
@@ -42,16 +40,15 @@ Live verification shell still needs these secrets before the final Stripe test:
 - SUPABASE_SERVICE_KEY
 
 Integrity hashes:
-- README.txt: sha256=75788c60682e01a893cd2469484c1e75b378c30f4739ef1aee2333cec5c1199a size_bytes=3005
-- evidence-manifest.json: sha256=217a7b0ceb36d528b57eab8b59f625cee9eae06a9715a1e23e555f7cdd2cfa63 size_bytes=9301
-- latest-trial-signup-smoke-check.json: path=docs/smoke-checks/latest-trial-signup-smoke-check.json sha256=6b4d1810d5e6f7791908086ce1742bbe5ae27af9b0d1c3295673958147e9d522 size_bytes=45583
-- latest-trial-signup-smoke-check.md: path=docs/smoke-checks/latest-trial-signup-smoke-check.md sha256=45d3ac8a12e3ea115ab469e888149bfc6fa0655ac9672a782c009e64b0384a61 size_bytes=30085
-- render-support-message.txt: sha256=376a0c29bc21b3eb0ece4d8f1e47367bda862911c4e9fb12bc3f398828bf45fa size_bytes=2406
-- render-support-payload.json: sha256=5dde5d41de605abc687ecd58c0ee44c0c02c3d4850377adc9225543dbb4501b9 size_bytes=1392
+- README.txt: sha256=aa55c1c9f439dfa0e18084fc931c5be9587623e62992fa42d6f2b537cac9d718 size_bytes=2768
+- evidence-manifest.json: sha256=981b21ecf5b72b82b9a5f07898b6b6292b9246afe25660a19537179a2f91eb54 size_bytes=8749
+- latest-trial-signup-smoke-check.json: path=docs/smoke-checks/latest-trial-signup-smoke-check.json sha256=d5afc6d7a7f33b04b102cbcfeb65a3ad5f7d12587fcc627881136686efccf74a size_bytes=45144
+- latest-trial-signup-smoke-check.md: path=docs/smoke-checks/latest-trial-signup-smoke-check.md sha256=c70a60542cd1153ba1095e225fd3eb9774cc3981b02ab697d896e7fc6b8a8ef7 size_bytes=29802
+- render-support-message.txt: sha256=ec4c6a8ae3d0f87168e3df3e6a7ea5919d79d9318eb1107c1b75a5a91d969130 size_bytes=2406
+- render-support-payload.json: sha256=b453866be5a8bcccfb77bfadc5bef346f7d0569e28241327df4cd7f1b52f8819 size_bytes=1392
 
 If forwarding to Render support:
-1. Use escalation-packet.zip if the support channel accepts a single attachment, or send the individual files below.
-2. Send render-support-message.txt as the support message body.
-3. Attach render-support-payload.json and evidence-manifest.json.
-4. Include the latest smoke-check JSON/Markdown artifacts and render.yaml from the packet file list above.
-5. If packet integrity is questioned later, compare the attached files against the sha256 hashes listed above.
+1. Send render-support-message.txt as the support message body.
+2. Attach render-support-payload.json and evidence-manifest.json.
+3. Include the latest smoke-check JSON/Markdown artifacts and render.yaml from the packet file list above.
+4. If packet integrity is questioned later, compare the attached files against the sha256 hashes listed above.

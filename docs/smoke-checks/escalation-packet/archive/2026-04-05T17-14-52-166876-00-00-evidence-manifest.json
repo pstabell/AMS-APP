@@ -2,28 +2,21 @@
   "artifact_inventory": {
     "escalation_packet_archive": {
       "exists": true,
-      "file_count": 20,
+      "file_count": 11,
       "latest_files": [
-        "docs/smoke-checks/escalation-packet/archive/2026-04-05T17-17-26-414980-00-00-escalation-packet.zip",
-        "docs/smoke-checks/escalation-packet/archive/2026-04-05T17-17-26-414980-00-00-README.txt",
-        "docs/smoke-checks/escalation-packet/archive/2026-04-05T17-17-26-414980-00-00-evidence-manifest.json",
-        "docs/smoke-checks/escalation-packet/archive/2026-04-05T17-17-26-414980-00-00-render-support-payload.json",
-        "docs/smoke-checks/escalation-packet/archive/2026-04-05T17-17-26-414980-00-00-render-support-message.txt",
-        "docs/smoke-checks/escalation-packet/archive/2026-04-05T17-14-52-166876-00-00-README.txt"
+        "docs/smoke-checks/escalation-packet/archive/2026-04-05T13-17-05-574510-00-00-README.txt",
+        "docs/smoke-checks/escalation-packet/archive/2026-04-05T13-17-05-574510-00-00-evidence-manifest.json",
+        "docs/smoke-checks/escalation-packet/archive/2026-04-05T13-17-05-574510-00-00-render-support-payload.json",
+        "docs/smoke-checks/escalation-packet/archive/2026-04-05T13-17-05-574510-00-00-render-support-message.txt",
+        "docs/smoke-checks/escalation-packet/archive/2026-04-05T11-17-32-923153-00-00-README.txt",
+        "docs/smoke-checks/escalation-packet/archive/2026-04-05T11-17-32-923153-00-00-evidence-manifest.json"
       ],
       "path": "docs/smoke-checks/escalation-packet/archive"
-    },
-    "escalation_packet_bundle": {
-      "exists": true,
-      "modified_at": "2026-04-05T17:17:27.388093+00:00",
-      "path": "docs/smoke-checks/escalation-packet/escalation-packet.zip",
-      "size_bytes": 4768
     },
     "escalation_packet_dir": {
       "exists": true,
       "files": [
         "docs/smoke-checks/escalation-packet/README.txt",
-        "docs/smoke-checks/escalation-packet/escalation-packet.zip",
         "docs/smoke-checks/escalation-packet/evidence-manifest.json",
         "docs/smoke-checks/escalation-packet/render-support-message.txt",
         "docs/smoke-checks/escalation-packet/render-support-payload.json"
@@ -32,68 +25,68 @@
     },
     "escalation_packet_manifest": {
       "exists": true,
-      "modified_at": "2026-04-05T17:17:27.383342+00:00",
+      "modified_at": "2026-04-05T13:17:06.682113+00:00",
       "path": "docs/smoke-checks/escalation-packet/evidence-manifest.json",
-      "size_bytes": 9201
+      "size_bytes": 8765
     },
     "escalation_packet_message": {
       "exists": true,
-      "modified_at": "2026-04-05T17:17:27.383057+00:00",
+      "modified_at": "2026-04-05T13:17:06.681812+00:00",
       "path": "docs/smoke-checks/escalation-packet/render-support-message.txt",
       "size_bytes": 2406
     },
     "escalation_packet_payload": {
       "exists": true,
-      "modified_at": "2026-04-05T17:17:27.383221+00:00",
+      "modified_at": "2026-04-05T13:17:06.681947+00:00",
       "path": "docs/smoke-checks/escalation-packet/render-support-payload.json",
       "size_bytes": 1392
     },
     "escalation_packet_readme": {
       "exists": true,
-      "modified_at": "2026-04-05T17:17:27.383480+00:00",
+      "modified_at": "2026-04-05T13:17:06.682280+00:00",
       "path": "docs/smoke-checks/escalation-packet/README.txt",
-      "size_bytes": 3107
+      "size_bytes": 2870
     },
     "latest_json": {
       "exists": true,
-      "modified_at": "2026-04-05T17:17:27.419825+00:00",
+      "modified_at": "2026-04-05T13:17:06.693060+00:00",
       "path": "docs/smoke-checks/latest-trial-signup-smoke-check.json",
-      "size_bytes": 46730
+      "size_bytes": 46290
     },
     "latest_markdown": {
       "exists": true,
-      "modified_at": "2026-04-05T17:17:27.420345+00:00",
+      "modified_at": "2026-04-05T13:17:06.693391+00:00",
       "path": "docs/smoke-checks/latest-trial-signup-smoke-check.md",
-      "size_bytes": 30964
+      "size_bytes": 30680
     },
     "owner_ready_archive": {
       "exists": true,
-      "file_count": 33,
+      "file_count": 27,
       "latest_files": [
-        "docs/smoke-checks/owner-ready/archive/2026-04-05T17-17-26-414980-00-00-verification_shell.txt",
-        "docs/smoke-checks/owner-ready/archive/2026-04-05T17-17-26-414980-00-00-render_support.txt",
-        "docs/smoke-checks/owner-ready/archive/2026-04-05T17-17-26-414980-00-00-traction.txt",
-        "docs/smoke-checks/owner-ready/archive/2026-04-05T17-14-52-166876-00-00-verification_shell.txt",
-        "docs/smoke-checks/owner-ready/archive/2026-04-05T17-14-52-166876-00-00-render_support.txt",
-        "docs/smoke-checks/owner-ready/archive/2026-04-05T17-14-52-166876-00-00-traction.txt"
+        "docs/smoke-checks/owner-ready/archive/2026-04-05T13-17-05-574510-00-00-verification_shell.txt",
+        "docs/smoke-checks/owner-ready/archive/2026-04-05T13-17-05-574510-00-00-render_support.txt",
+        "docs/smoke-checks/owner-ready/archive/2026-04-05T13-17-05-574510-00-00-traction.txt",
+        "docs/smoke-checks/owner-ready/archive/2026-04-05T11-17-32-923153-00-00-verification_shell.txt",
+        "docs/smoke-checks/owner-ready/archive/2026-04-05T11-17-32-923153-00-00-render_support.txt",
+        "docs/smoke-checks/owner-ready/archive/2026-04-05T11-17-32-923153-00-00-traction.txt"
       ],
       "path": "docs/smoke-checks/owner-ready/archive"
     },
     "owner_ready_render_support": {
       "exists": true,
-      "modified_at": "2026-04-05T17:17:27.370784+00:00",
+      "modified_at": "2026-04-05T13:17:06.677622+00:00",
       "path": "docs/smoke-checks/owner-ready/render_support.txt",
       "size_bytes": 726
     },
     "owner_ready_traction": {
       "exists": true,
-      "modified_at": "2026-04-05T17:17:27.370667+00:00",
+      "modified_at": "2026-04-05T13:17:06.676195+00:00",
       "path": "docs/smoke-checks/owner-ready/traction.txt",
       "size_bytes": 651
     },
     "owner_ready_verification_shell": {
       "exists": true,
-      "modified_at": "2026-04-05T17:17:27.370889+00:00",
+      "modified_at": "2026-04-05T13:17:06.677769+00:00",
       "path": "docs/smoke-checks/owner-ready/verification_shell.txt",
       "size_bytes": 584
     },
@@ -107,8 +100,7 @@
       "docs/smoke-checks/escalation-packet/render-support-message.txt",
       "docs/smoke-checks/escalation-packet/render-support-payload.json",
       "docs/smoke-checks/escalation-packet/evidence-manifest.json",
-      "docs/smoke-checks/escalation-packet/README.txt",
-      "docs/smoke-checks/escalation-packet/escalation-packet.zip"
+      "docs/smoke-checks/escalation-packet/README.txt"
     ],
     "render_blueprint": {
       "exists": true,
@@ -124,20 +116,19 @@
       "docs/smoke-checks/escalation-packet/render-support-message.txt",
       "docs/smoke-checks/escalation-packet/render-support-payload.json",
       "docs/smoke-checks/escalation-packet/evidence-manifest.json",
-      "docs/smoke-checks/escalation-packet/README.txt",
-      "docs/smoke-checks/escalation-packet/escalation-packet.zip"
+      "docs/smoke-checks/escalation-packet/README.txt"
     ],
     "smoke_check_script": {
       "exists": true,
-      "modified_at": "2026-04-05T17:15:57.303041+00:00",
+      "modified_at": "2026-04-05T13:15:41.800455+00:00",
       "path": "scripts/trial_signup_smoke_check.py",
-      "size_bytes": 107482
+      "size_bytes": 106362
     },
     "smoke_check_tests": {
       "exists": true,
-      "modified_at": "2026-04-05T17:17:34.773847+00:00",
+      "modified_at": "2026-04-05T13:16:52.531258+00:00",
       "path": "test_trial_signup_smoke_check.py",
-      "size_bytes": 98417
+      "size_bytes": 96769
     },
     "traction_handoff_files": [
       "docs/TRIAL_SIGNUP_E2E_REPORT_2026-04-01.md",
@@ -149,33 +140,33 @@
     ],
     "trial_signup_report": {
       "exists": true,
-      "modified_at": "2026-04-05T17:17:18.803532+00:00",
+      "modified_at": "2026-04-05T11:17:51.500392+00:00",
       "path": "docs/TRIAL_SIGNUP_E2E_REPORT_2026-04-01.md",
-      "size_bytes": 19591
+      "size_bytes": 18737
     }
   },
-  "generated_at": "2026-04-05T17:17:46.451097+00:00",
+  "generated_at": "2026-04-05T17:14:52.166876+00:00",
   "packet_hashes": {
     "evidence-manifest.json": {
-      "sha256": "54dce12b74fde578fca193bed76ff39d5191bcb2876a764ae053e74ed8107f2b",
-      "size_bytes": 9153
+      "sha256": "7e3300ce886046049946dff6f55a7d6e6d99fc136bdfd3d95e201dbb9ab26570",
+      "size_bytes": 8601
     },
     "latest-trial-signup-smoke-check.json": {
       "path": "docs/smoke-checks/latest-trial-signup-smoke-check.json",
-      "sha256": "6b4d1810d5e6f7791908086ce1742bbe5ae27af9b0d1c3295673958147e9d522",
-      "size_bytes": 45583
+      "sha256": "d5afc6d7a7f33b04b102cbcfeb65a3ad5f7d12587fcc627881136686efccf74a",
+      "size_bytes": 45144
     },
     "latest-trial-signup-smoke-check.md": {
       "path": "docs/smoke-checks/latest-trial-signup-smoke-check.md",
-      "sha256": "45d3ac8a12e3ea115ab469e888149bfc6fa0655ac9672a782c009e64b0384a61",
-      "size_bytes": 30085
+      "sha256": "c70a60542cd1153ba1095e225fd3eb9774cc3981b02ab697d896e7fc6b8a8ef7",
+      "size_bytes": 29802
     },
     "render-support-message.txt": {
-      "sha256": "376a0c29bc21b3eb0ece4d8f1e47367bda862911c4e9fb12bc3f398828bf45fa",
+      "sha256": "ec4c6a8ae3d0f87168e3df3e6a7ea5919d79d9318eb1107c1b75a5a91d969130",
       "size_bytes": 2406
     },
     "render-support-payload.json": {
-      "sha256": "5dde5d41de605abc687ecd58c0ee44c0c02c3d4850377adc9225543dbb4501b9",
+      "sha256": "b453866be5a8bcccfb77bfadc5bef346f7d0569e28241327df4cd7f1b52f8819",
       "size_bytes": 1392
     }
   },
@@ -189,8 +180,7 @@
     "docs/smoke-checks/escalation-packet/render-support-message.txt",
     "docs/smoke-checks/escalation-packet/render-support-payload.json",
     "docs/smoke-checks/escalation-packet/evidence-manifest.json",
-    "docs/smoke-checks/escalation-packet/README.txt",
-    "docs/smoke-checks/escalation-packet/escalation-packet.zip"
+    "docs/smoke-checks/escalation-packet/README.txt"
   ],
   "render_support_packet_files": [
     "docs/smoke-checks/latest-trial-signup-smoke-check.json",
@@ -200,8 +190,7 @@
     "docs/smoke-checks/escalation-packet/render-support-message.txt",
     "docs/smoke-checks/escalation-packet/render-support-payload.json",
     "docs/smoke-checks/escalation-packet/evidence-manifest.json",
-    "docs/smoke-checks/escalation-packet/README.txt",
-    "docs/smoke-checks/escalation-packet/escalation-packet.zip"
+    "docs/smoke-checks/escalation-packet/README.txt"
   ],
   "traction_handoff_files": [
     "docs/TRIAL_SIGNUP_E2E_REPORT_2026-04-01.md",
