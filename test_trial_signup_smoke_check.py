@@ -1517,19 +1517,50 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertFalse(payload["summary"]["render_incident_signature"]["external_routing_issue"])
         self.assertIn("Review both Render services together", payload["summary"]["render_recovery_playbook"][0])
 
-    def test_main_can_write_json_and_markdown_outputs(self):
+    def test_write_owner_ready_messages_writes_copy_ready_text_files(self):
+        report = self._build_ready_report()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            written_paths = smoke.write_owner_ready_messages(report, temp_dir)
+            written_names = sorted(path.name for path in written_paths)
+
+            self.assertEqual(
+                written_names,
+                ["render_support.txt", "traction.txt", "verification_shell.txt"],
+            )
+            self.assertIn(
+                "Traction handoff",
+                (pathlib.Path(temp_dir) / "traction.txt").read_text(encoding="utf-8"),
+            )
+            self.assertIn(
+                "Render support request",
+                (pathlib.Path(temp_dir) / "render_support.txt").read_text(encoding="utf-8"),
+            )
+
+    def test_main_can_write_json_markdown_and_owner_message_outputs(self):
         report = self._build_ready_report()
 
         with tempfile.TemporaryDirectory() as temp_dir:
             json_path = pathlib.Path(temp_dir) / "report.json"
             markdown_path = pathlib.Path(temp_dir) / "report.md"
+            owner_dir = pathlib.Path(temp_dir) / "owner-messages"
 
             with mock.patch.object(smoke, "generate_report", return_value=report), mock.patch.object(smoke, "load_previous_report", return_value=None), mock.patch("sys.stdout"):
-                exit_code = smoke.main(["--json-out", str(json_path), "--markdown-out", str(markdown_path)])
+                exit_code = smoke.main([
+                    "--json-out",
+                    str(json_path),
+                    "--markdown-out",
+                    str(markdown_path),
+                    "--owner-messages-dir",
+                    str(owner_dir),
+                ])
 
             self.assertEqual(exit_code, 0)
             self.assertTrue(json_path.exists())
             self.assertTrue(markdown_path.exists())
+            self.assertTrue((owner_dir / "traction.txt").exists())
+            self.assertTrue((owner_dir / "render_support.txt").exists())
+            self.assertTrue((owner_dir / "verification_shell.txt").exists())
             self.assertTrue(json.loads(json_path.read_text())["summary"]["ready_for_live_e2e"])
             self.assertIn("Trial Signup Smoke Check Snapshot", markdown_path.read_text())
 

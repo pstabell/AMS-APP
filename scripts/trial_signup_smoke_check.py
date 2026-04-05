@@ -2005,6 +2005,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Smoke-check the AMS-APP trial signup stack.")
     parser.add_argument("--json-out", help="Optional path to write the JSON report.")
     parser.add_argument("--markdown-out", help="Optional path to write a Markdown summary report.")
+    parser.add_argument(
+        "--owner-messages-dir",
+        help="Optional directory to write copy-ready owner handoff text files.",
+    )
     return parser.parse_args(argv)
 
 
@@ -2026,6 +2030,19 @@ def load_previous_report(json_out: str | None = None) -> dict[str, Any] | None:
     return None
 
 
+def write_owner_ready_messages(report: dict[str, Any], output_dir: str) -> list[Path]:
+    base_path = Path(output_dir)
+    base_path.mkdir(parents=True, exist_ok=True)
+
+    written_paths: list[Path] = []
+    for owner, message in report.get("summary", {}).get("owner_ready_messages", {}).items():
+        target_path = base_path / f"{owner}.txt"
+        target_path.write_text(str(message).rstrip() + "\n", encoding="utf-8")
+        written_paths.append(target_path)
+
+    return written_paths
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
@@ -2038,6 +2055,8 @@ def main(argv: list[str] | None = None) -> int:
         Path(args.json_out).write_text(payload + "\n", encoding="utf-8")
     if args.markdown_out:
         Path(args.markdown_out).write_text(render_markdown_report(report), encoding="utf-8")
+    if args.owner_messages_dir:
+        write_owner_ready_messages(report, args.owner_messages_dir)
 
     return 0 if report["summary"]["ready_for_live_e2e"] else 1
 
