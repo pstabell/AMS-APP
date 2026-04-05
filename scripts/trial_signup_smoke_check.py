@@ -35,6 +35,7 @@ DEFAULT_JSON_ARTIFACT = ROOT / "docs" / "smoke-checks" / "latest-trial-signup-sm
 DEFAULT_OWNER_READY_DIR = ROOT / "docs" / "smoke-checks" / "owner-ready"
 DEFAULT_OWNER_READY_ARCHIVE_DIR = DEFAULT_OWNER_READY_DIR / "archive"
 DEFAULT_ESCALATION_PACKET_DIR = ROOT / "docs" / "smoke-checks" / "escalation-packet"
+DEFAULT_ESCALATION_PACKET_ARCHIVE_DIR = DEFAULT_ESCALATION_PACKET_DIR / "archive"
 
 APP_URL = os.getenv("RENDER_APP_URL", "https://commission-tracker-app.onrender.com")
 WEBHOOK_URL = os.getenv(
@@ -1337,6 +1338,16 @@ def build_owner_ready_archive_file_paths(report: dict[str, Any], archive_dir: st
     }
 
 
+def build_escalation_packet_archive_file_paths(report: dict[str, Any], archive_dir: str | Path) -> dict[str, Path]:
+    base_path = Path(archive_dir)
+    slug = _generated_at_slug(report.get("generated_at"))
+    return {
+        "render-support-message.txt": base_path / f"{slug}-render-support-message.txt",
+        "render-support-payload.json": base_path / f"{slug}-render-support-payload.json",
+        "evidence-manifest.json": base_path / f"{slug}-evidence-manifest.json",
+    }
+
+
 def build_artifact_inventory() -> dict[str, Any]:
     smoke_dir = ROOT / "docs" / "smoke-checks"
     artifact_paths = {
@@ -1376,6 +1387,17 @@ def build_artifact_inventory() -> dict[str, Any]:
             _display_path(path)
             for path in sorted(DEFAULT_ESCALATION_PACKET_DIR.glob("*"))
             if path.is_file()
+        ],
+    }
+
+    escalation_archive_files = sorted(DEFAULT_ESCALATION_PACKET_ARCHIVE_DIR.glob("*")) if DEFAULT_ESCALATION_PACKET_ARCHIVE_DIR.exists() else []
+    inventory["escalation_packet_archive"] = {
+        "path": _display_path(DEFAULT_ESCALATION_PACKET_ARCHIVE_DIR),
+        "exists": DEFAULT_ESCALATION_PACKET_ARCHIVE_DIR.exists(),
+        "file_count": len(escalation_archive_files),
+        "latest_files": [
+            _display_path(path)
+            for path in sorted(escalation_archive_files, key=lambda p: p.stat().st_mtime, reverse=True)[:6]
         ],
     }
 
@@ -2085,6 +2107,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--escalation-packet-dir",
         help="Optional directory to write a send-ready Render escalation packet with message, JSON payload, and evidence manifest.",
     )
+    parser.add_argument(
+        "--escalation-packet-archive-dir",
+        help="Optional directory to write timestamped Render escalation packet snapshots for historical support evidence.",
+    )
     return parser.parse_args(argv)
 
 
@@ -2138,16 +2164,13 @@ def write_owner_ready_archive(report: dict[str, Any], archive_dir: str) -> list[
     return written_paths
 
 
-def write_escalation_packet(report: dict[str, Any], output_dir: str) -> list[Path]:
-    base_path = Path(output_dir)
-    base_path.mkdir(parents=True, exist_ok=True)
-
+def build_escalation_packet_file_contents(report: dict[str, Any]) -> dict[str, str]:
     summary = report.get("summary", {})
     payload = summary.get("render_escalation_payload", {})
     message = summary.get("render_escalation_message", "")
     inventory = summary.get("artifact_inventory", {})
 
-    files_to_write = {
+    return {
         "render-support-message.txt": str(message).rstrip() + "\n",
         "render-support-payload.json": json.dumps(payload, indent=2, sort_keys=True) + "\n",
         "evidence-manifest.json": json.dumps(
@@ -2163,9 +2186,36 @@ def write_escalation_packet(report: dict[str, Any], output_dir: str) -> list[Pat
         ) + "\n",
     }
 
+
+def write_escalation_packet(report: dict[str, Any], output_dir: str) -> list[Path]:
+    base_path = Path(output_dir)
+    base_path.mkdir(parents=True, exist_ok=True)
+
+    files_to_write = build_escalation_packet_file_contents(report)
+
     written_paths: list[Path] = []
     for filename, content in files_to_write.items():
         target_path = base_path / filename
+        target_path.write_text(content, encoding="utf-8")
+        written_paths.append(target_path)
+
+    return written_paths
+
+
+def write_escalation_packet_archive(report: dict[str, Any], archive_dir: str) -> list[Path]:
+    archive_paths = build_escalation_packet_archive_file_paths(report, archive_dir)
+    if not archive_paths:
+        return []
+
+    base_path = Path(archive_dir)
+    base_path.mkdir(parents=True, exist_ok=True)
+    files_to_write = build_escalation_packet_file_contents(report)
+
+    written_paths: list[Path] = []
+    for filename, target_path in archive_paths.items():
+        content = files_to_write.get(filename)
+        if content is None:
+            continue
         target_path.write_text(content, encoding="utf-8")
         written_paths.append(target_path)
 
@@ -2190,6 +2240,8 @@ def main(argv: list[str] | None = None) -> int:
         write_owner_ready_archive(report, args.owner_messages_archive_dir)
     if args.escalation_packet_dir:
         write_escalation_packet(report, args.escalation_packet_dir)
+    if args.escalation_packet_archive_dir:
+        write_escalation_packet_archive(report, args.escalation_packet_archive_dir)
 
     report["summary"]["artifact_inventory"] = build_artifact_inventory()
     refreshed_payload = json.dumps(report, indent=2, sort_keys=True)
