@@ -1,6 +1,6 @@
 # Trial Signup Smoke Check Snapshot
 
-Generated at: 2026-04-05T19:18:19.895259+00:00
+Generated at: 2026-04-05T21:16:09.665025+00:00
 Ready for live e2e: NO
 
 ## Executive summary
@@ -8,7 +8,7 @@ Ready for live e2e: NO
 - Render evidence: app attachment_state=healthy-attached with x-render-origin-server=TornadoServer/6.5.5, webhook attachment_state=missing-backend-attachment with x-render-routing=no-server.
 - Repo-side checkout, webhook, and Render blueprint contracts are green while the app hostname is healthy-attached and the webhook hostname is missing-backend-attachment. This points to an external Render service or domain binding problem, not an app-code route regression.
 - Live verification shell still needs secrets before the final Stripe run: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_ID, RESEND_API_KEY, SUPABASE_SERVICE_KEY
-- Escalation: severity=critical owner=Traction destination=Render support unchanged_blocked_streak=19.
+- Escalation: severity=critical owner=Traction destination=Render support unchanged_blocked_streak=20.
 - Traction should escalate to Render support. Escalate immediately. The outage is externally isolated and has repeated without material recovery. Live E2E shell still needs secrets before the final Stripe confirmation: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_ID, RESEND_API_KEY, SUPABASE_SERVICE_KEY
 
 ## Public checks
@@ -142,9 +142,9 @@ PY
 - curl -i https://commission-tracker-webhook.onrender.com/test
 
 ## Change summary versus previous smoke check
-- Previous artifact generated at: 2026-04-05T19:15:05.319678+00:00
+- Previous artifact generated at: 2026-04-05T19:18:19.895259+00:00
 - Material change detected: NO
-- Unchanged blocked streak: 19
+- Unchanged blocked streak: 20
 - No material change detected versus the previous smoke-check artifact.
 
 ## Incident history
@@ -154,9 +154,9 @@ PY
 - First blocked at: 2026-04-02T05:17:10.778608+00:00
 - First no-server at: 2026-04-02T07:18:14.875837+00:00
 - Current state started at: 2026-04-02T07:18:14.875837+00:00
-- Blocked duration: 3d 14h 1m
-- No-server duration: 3d 12h 0m
-- Current state duration: 3d 12h 0m
+- Blocked duration: 3d 15h 58m
+- No-server duration: 3d 13h 57m
+- Current state duration: 3d 13h 57m
 
 ## Render incident signature
 - Repo contract OK: YES
@@ -168,14 +168,14 @@ PY
 ## Render support packet
 - Incident type: render-webhook-routing-outage
 - Requested action: Confirm the webhook hostname is attached to commission-tracker-webhook, redeploy the service, and recheck /health until x-render-routing=no-server disappears.
-- commission-tracker-app: host=commission-tracker-app.onrender.com; probe_path=/; status=200 OK; attachment_state=healthy-attached; x-render-origin-server=TornadoServer/6.5.5; x-render-routing=None; cf-ray=9e7ae5e6cd0c52d5-IAD; date=Sun, 05 Apr 2026 19:18:20 GMT
-- commission-tracker-webhook: host=commission-tracker-webhook.onrender.com; probe_path=/health; status=404 Not Found; attachment_state=missing-backend-attachment; x-render-origin-server=None; x-render-routing=no-server; cf-ray=9e7ae5e75dedd631-IAD; date=Sun, 05 Apr 2026 19:18:20 GMT
+- commission-tracker-app: host=commission-tracker-app.onrender.com; probe_path=/; status=200 OK; attachment_state=healthy-attached; x-render-origin-server=TornadoServer/6.5.5; x-render-routing=None; cf-ray=9e7b92814e362018-IAD; date=Sun, 05 Apr 2026 21:16:09 GMT
+- commission-tracker-webhook: host=commission-tracker-webhook.onrender.com; probe_path=/health; status=404 Not Found; attachment_state=missing-backend-attachment; x-render-origin-server=None; x-render-routing=no-server; cf-ray=9e7b92823aa2d468-IAD; date=Sun, 05 Apr 2026 21:16:10 GMT
 
 ## Escalation recommendation
 - Severity: critical
 - Owner: Traction
 - Destination: Render support
-- Unchanged blocked streak: 19
+- Unchanged blocked streak: 20
 - Urgency: Escalate immediately. The outage is externally isolated and has repeated without material recovery.
 - Prerequisite: Live E2E shell still needs secrets before the final Stripe confirmation: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_ID, RESEND_API_KEY, SUPABASE_SERVICE_KEY
 - Recommended message: Traction should escalate to Render support. Escalate immediately. The outage is externally isolated and has repeated without material recovery. Live E2E shell still needs secrets before the final Stripe confirmation: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_ID, RESEND_API_KEY, SUPABASE_SERVICE_KEY
@@ -185,36 +185,45 @@ PY
 - markdown: python3 scripts/trial_signup_smoke_check.py --markdown-out docs/smoke-checks/latest-trial-signup-smoke-check.md
 - both: python3 scripts/trial_signup_smoke_check.py --json-out docs/smoke-checks/latest-trial-signup-smoke-check.json --markdown-out docs/smoke-checks/latest-trial-signup-smoke-check.md
 
+## Packet verification commands
+- latest_bundle:
+  - cd . && sha256sum -c docs/smoke-checks/escalation-packet/escalation-packet.zip.sha256
+  - cd . && unzip -l docs/smoke-checks/escalation-packet/escalation-packet.zip
+- archived_bundle:
+  - cd . && latest_checksum=$(ls -1t docs/smoke-checks/escalation-packet/archive/*-escalation-packet.zip.sha256 | head -n 1)
+  - cd . && sha256sum -c "$latest_checksum"
+  - cd . && latest_bundle=${latest_checksum%.sha256} && unzip -l "$latest_bundle"
+
 ## Artifact inventory
-- latest_json: path=docs/smoke-checks/latest-trial-signup-smoke-check.json; exists=YES; size_bytes=46039; modified_at=2026-04-05T19:18:20.875368+00:00
-- latest_markdown: path=docs/smoke-checks/latest-trial-signup-smoke-check.md; exists=YES; size_bytes=30434; modified_at=2026-04-05T19:18:20.875748+00:00
-- trial_signup_report: path=docs/TRIAL_SIGNUP_E2E_REPORT_2026-04-01.md; exists=YES; size_bytes=19591; modified_at=2026-04-05T17:17:18.803532+00:00
+- latest_json: path=docs/smoke-checks/latest-trial-signup-smoke-check.json; exists=YES; size_bytes=46728; modified_at=2026-04-05T21:16:10.788054+00:00
+- latest_markdown: path=docs/smoke-checks/latest-trial-signup-smoke-check.md; exists=YES; size_bytes=30956; modified_at=2026-04-05T21:16:10.788143+00:00
+- trial_signup_report: path=docs/TRIAL_SIGNUP_E2E_REPORT_2026-04-01.md; exists=YES; size_bytes=20461; modified_at=2026-04-05T19:18:40.448840+00:00
 - render_blueprint: path=render.yaml; exists=YES; size_bytes=2080; modified_at=2026-04-03T01:15:05.095488+00:00
-- smoke_check_script: path=scripts/trial_signup_smoke_check.py; exists=YES; size_bytes=108938; modified_at=2026-04-05T19:16:48.424131+00:00
-- smoke_check_tests: path=test_trial_signup_smoke_check.py; exists=YES; size_bytes=100581; modified_at=2026-04-05T19:18:04.844304+00:00
-- owner_ready_traction: path=docs/smoke-checks/owner-ready/traction.txt; exists=YES; size_bytes=651; modified_at=2026-04-05T19:18:20.875911+00:00
-- owner_ready_render_support: path=docs/smoke-checks/owner-ready/render_support.txt; exists=YES; size_bytes=726; modified_at=2026-04-05T19:18:20.875990+00:00
-- owner_ready_verification_shell: path=docs/smoke-checks/owner-ready/verification_shell.txt; exists=YES; size_bytes=584; modified_at=2026-04-05T19:18:20.876054+00:00
-- escalation_packet_message: path=docs/smoke-checks/escalation-packet/render-support-message.txt; exists=YES; size_bytes=2406; modified_at=2026-04-05T19:18:20.878530+00:00
-- escalation_packet_payload: path=docs/smoke-checks/escalation-packet/render-support-payload.json; exists=YES; size_bytes=1392; modified_at=2026-04-05T19:18:20.878645+00:00
-- escalation_packet_manifest: path=docs/smoke-checks/escalation-packet/evidence-manifest.json; exists=YES; size_bytes=9955; modified_at=2026-04-05T19:18:20.878739+00:00
-- escalation_packet_readme: path=docs/smoke-checks/escalation-packet/README.txt; exists=YES; size_bytes=3241; modified_at=2026-04-05T19:18:20.878845+00:00
-- escalation_packet_bundle_checksum: path=docs/smoke-checks/escalation-packet/escalation-packet.zip.sha256; exists=YES; size_bytes=88; modified_at=2026-04-05T19:18:20.879851+00:00
+- smoke_check_script: path=scripts/trial_signup_smoke_check.py; exists=YES; size_bytes=110255; modified_at=2026-04-05T21:15:00.934917+00:00
+- smoke_check_tests: path=test_trial_signup_smoke_check.py; exists=YES; size_bytes=102096; modified_at=2026-04-05T21:15:54.304868+00:00
+- owner_ready_traction: path=docs/smoke-checks/owner-ready/traction.txt; exists=YES; size_bytes=651; modified_at=2026-04-05T21:16:10.788828+00:00
+- owner_ready_render_support: path=docs/smoke-checks/owner-ready/render_support.txt; exists=YES; size_bytes=726; modified_at=2026-04-05T21:16:10.788953+00:00
+- owner_ready_verification_shell: path=docs/smoke-checks/owner-ready/verification_shell.txt; exists=YES; size_bytes=584; modified_at=2026-04-05T21:16:10.789050+00:00
+- escalation_packet_message: path=docs/smoke-checks/escalation-packet/render-support-message.txt; exists=YES; size_bytes=2406; modified_at=2026-04-05T21:16:10.793192+00:00
+- escalation_packet_payload: path=docs/smoke-checks/escalation-packet/render-support-payload.json; exists=YES; size_bytes=1392; modified_at=2026-04-05T21:16:10.793322+00:00
+- escalation_packet_manifest: path=docs/smoke-checks/escalation-packet/evidence-manifest.json; exists=YES; size_bytes=10068; modified_at=2026-04-05T21:16:10.793444+00:00
+- escalation_packet_readme: path=docs/smoke-checks/escalation-packet/README.txt; exists=YES; size_bytes=3242; modified_at=2026-04-05T21:16:10.793591+00:00
+- escalation_packet_bundle_checksum: path=docs/smoke-checks/escalation-packet/escalation-packet.zip.sha256; exists=YES; size_bytes=88; modified_at=2026-04-05T21:16:10.794633+00:00
 - owner_ready_archive: path=docs/smoke-checks/owner-ready/archive; exists=YES; size_bytes=None; modified_at=None
 - escalation_packet_dir: path=docs/smoke-checks/escalation-packet; exists=YES; size_bytes=None; modified_at=None
-- escalation_packet_bundle: path=docs/smoke-checks/escalation-packet/escalation-packet.zip; exists=YES; size_bytes=4804; modified_at=2026-04-05T19:18:20.879232+00:00
+- escalation_packet_bundle: path=docs/smoke-checks/escalation-packet/escalation-packet.zip; exists=YES; size_bytes=4801; modified_at=2026-04-05T21:16:10.793971+00:00
 - escalation_packet_archive: path=docs/smoke-checks/escalation-packet/archive; exists=YES; size_bytes=None; modified_at=None
 - recommended_attachments: docs/smoke-checks/latest-trial-signup-smoke-check.json, docs/smoke-checks/latest-trial-signup-smoke-check.md, docs/TRIAL_SIGNUP_E2E_REPORT_2026-04-01.md, render.yaml, docs/smoke-checks/owner-ready/traction.txt, docs/smoke-checks/owner-ready/render_support.txt, docs/smoke-checks/escalation-packet/render-support-message.txt, docs/smoke-checks/escalation-packet/render-support-payload.json, docs/smoke-checks/escalation-packet/evidence-manifest.json, docs/smoke-checks/escalation-packet/README.txt, docs/smoke-checks/escalation-packet/escalation-packet.zip, docs/smoke-checks/escalation-packet/escalation-packet.zip.sha256
 - render_support_packet_files: docs/smoke-checks/latest-trial-signup-smoke-check.json, docs/smoke-checks/latest-trial-signup-smoke-check.md, render.yaml, docs/smoke-checks/owner-ready/render_support.txt, docs/smoke-checks/escalation-packet/render-support-message.txt, docs/smoke-checks/escalation-packet/render-support-payload.json, docs/smoke-checks/escalation-packet/evidence-manifest.json, docs/smoke-checks/escalation-packet/README.txt, docs/smoke-checks/escalation-packet/escalation-packet.zip, docs/smoke-checks/escalation-packet/escalation-packet.zip.sha256
 - traction_handoff_files: docs/TRIAL_SIGNUP_E2E_REPORT_2026-04-01.md, docs/smoke-checks/latest-trial-signup-smoke-check.md, docs/smoke-checks/latest-trial-signup-smoke-check.json, docs/smoke-checks/owner-ready/traction.txt, docs/smoke-checks/escalation-packet/render-support-message.txt, docs/smoke-checks/escalation-packet/evidence-manifest.json, docs/smoke-checks/escalation-packet/escalation-packet.zip.sha256
 
 ## Escalation packet hashes
-- render-support-message.txt: sha256=0a9d18b0a5405426ac6cdce21d2067346466e45751ccee6237bdb0f4081f5184; size_bytes=2406; path=None
-- render-support-payload.json: sha256=28a2846be676d3f71f79aad65d8706d0ed3ce0618de83de7f8e2ba951c767c0c; size_bytes=1392; path=None
-- evidence-manifest.json: sha256=4712eee2ce2f8882abaf47f866cc8090d26211e16683944b92f4a03bf72e17f2; size_bytes=9955; path=None
-- README.txt: sha256=17a81bb19c439aca1bea9c321da1ef78f0be2b942212d33db247a50bb02fcb94; size_bytes=3139; path=None
-- latest-trial-signup-smoke-check.json: sha256=1c23c43d8beeb71512a8285cc54b164beb08f96f38d4537f62c1208ce31608d7; size_bytes=46039; path=docs/smoke-checks/latest-trial-signup-smoke-check.json
-- latest-trial-signup-smoke-check.md: sha256=5a1ae33f1e0455cfb65e2291ed1dec7216aec401fe87e785af24fc4048b41390; size_bytes=30434; path=docs/smoke-checks/latest-trial-signup-smoke-check.md
+- render-support-message.txt: sha256=c7b0fba9df472114bdafea3bd3c3b6df8f572a0123b6f1cbe943bc9b59e974f3; size_bytes=2406; path=None
+- render-support-payload.json: sha256=7879e434b0f42dd613c3166330a55490ebf029f657303fc0baaf3be5eaaa869d; size_bytes=1392; path=None
+- evidence-manifest.json: sha256=ad056e067f5cf5a508eca90829eff7c2be61962747b326e3b7261e56768d22e6; size_bytes=10068; path=None
+- README.txt: sha256=b9d249543dade2998da9758e8f9f8597c11e3ae3383567fdd58087d66aab5bb6; size_bytes=3140; path=None
+- latest-trial-signup-smoke-check.json: sha256=d41b946442c4b112fa0929b3ad2bff2c57a370a098a1b8c6bab901d26dba72d5; size_bytes=46728; path=docs/smoke-checks/latest-trial-signup-smoke-check.json
+- latest-trial-signup-smoke-check.md: sha256=495eb83508598e4a858218ecaf7515512f061392c20781ccbb1b148d13143e9c; size_bytes=30956; path=docs/smoke-checks/latest-trial-signup-smoke-check.md
 
 ## Owner action plan
 - traction:
@@ -236,8 +245,8 @@ PY
   - Only run a real Stripe test-mode signup after ready_for_live_e2e flips to true.
 
 ## Owner ready messages
-- traction: Traction handoff at 2026-04-05T19:18:19.895259+00:00: commission-tracker-app.onrender.com/ is healthy at HTTP 200 while commission-tracker-webhook.onrender.com/health is still HTTP 404 with x-render-routing=no-server. Forward the attached Render escalation packet, ask Render to confirm the webhook hostname is attached to commission-tracker-webhook, redeploy it, and then have the verification shell rerun the smoke check. Next actions: Forward the Render escalation message and support packet without rewriting the evidence. Attach the latest smoke-check JSON, smoke-check Markdown, trial-signup report, and render.yaml from the artifact inventory.
-- render_support: Render support request generated 2026-04-05T19:18:19.895259+00:00: commission-tracker-app.onrender.com/ is healthy at HTTP 200 with attachment_state=healthy-attached, but commission-tracker-webhook.onrender.com/health is HTTP 404 with attachment_state=missing-backend-attachment and x-render-routing=no-server. Please confirm commission-tracker-webhook owns the webhook hostname, redeploy the service, and retest /health until the route returns 200 without x-render-routing=no-server. Next actions: Confirm commission-tracker-webhook.onrender.com is attached to commission-tracker-webhook, not a stale or missing backend. Redeploy commission-tracker-webhook and verify the runtime comes up healthy behind the public hostname.
+- traction: Traction handoff at 2026-04-05T21:16:09.665025+00:00: commission-tracker-app.onrender.com/ is healthy at HTTP 200 while commission-tracker-webhook.onrender.com/health is still HTTP 404 with x-render-routing=no-server. Forward the attached Render escalation packet, ask Render to confirm the webhook hostname is attached to commission-tracker-webhook, redeploy it, and then have the verification shell rerun the smoke check. Next actions: Forward the Render escalation message and support packet without rewriting the evidence. Attach the latest smoke-check JSON, smoke-check Markdown, trial-signup report, and render.yaml from the artifact inventory.
+- render_support: Render support request generated 2026-04-05T21:16:09.665025+00:00: commission-tracker-app.onrender.com/ is healthy at HTTP 200 with attachment_state=healthy-attached, but commission-tracker-webhook.onrender.com/health is HTTP 404 with attachment_state=missing-backend-attachment and x-render-routing=no-server. Please confirm commission-tracker-webhook owns the webhook hostname, redeploy the service, and retest /health until the route returns 200 without x-render-routing=no-server. Next actions: Confirm commission-tracker-webhook.onrender.com is attached to commission-tracker-webhook, not a stale or missing backend. Redeploy commission-tracker-webhook and verify the runtime comes up healthy behind the public hostname.
 - verification_shell: Verification-shell handoff: rerun python3 scripts/trial_signup_smoke_check.py after Render reports the webhook service healthy, refresh the JSON and Markdown artifacts, and only run the real Stripe test-mode signup after ready_for_live_e2e turns true. Missing live E2E secrets: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_ID, RESEND_API_KEY, SUPABASE_SERVICE_KEY. Next actions: Re-run python3 scripts/trial_signup_smoke_check.py after Render reports the webhook deploy is healthy. Refresh the JSON and Markdown smoke-check artifacts before attempting any live Stripe path.
 
 ## Render recovery playbook
@@ -262,7 +271,7 @@ PY
 
 ## Render escalation message
 Render support request for AMS-APP webhook routing outage.
-Generated at 2026-04-05T19:18:19.895259+00:00.
+Generated at 2026-04-05T21:16:09.665025+00:00.
 Repo-side checkout, webhook, and Render blueprint contracts are green while the app hostname is healthy-attached and the webhook hostname is missing-backend-attachment. This points to an external Render service or domain binding problem, not an app-code route regression.
 Healthy app host evidence: commission-tracker-app.onrender.com/ -> HTTP 200 OK with attachment_state=healthy-attached and x-render-origin-server=TornadoServer/6.5.5.
 Broken webhook host evidence: commission-tracker-webhook.onrender.com/health -> HTTP 404 Not Found with attachment_state=missing-backend-attachment and x-render-routing=no-server.
@@ -282,9 +291,9 @@ Recommended recovery steps:
 - severity: critical
 - owner: Traction
 - destination: Render support
-- generated_at: 2026-04-05T19:18:19.895259+00:00
+- generated_at: 2026-04-05T21:16:09.665025+00:00
 - incident_type: render-webhook-routing-outage
-- unchanged_blocked_streak: 19
+- unchanged_blocked_streak: 20
 - repo_contract_ok: True
 - external_routing_issue: True
 - app_host_evidence: commission-tracker-app.onrender.com/ -> HTTP 200 OK attachment_state=healthy-attached x-render-origin-server=TornadoServer/6.5.5

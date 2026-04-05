@@ -272,6 +272,25 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
             "python3 scripts/trial_signup_smoke_check.py --json-out docs/smoke-checks/latest-trial-signup-smoke-check.json --markdown-out docs/smoke-checks/latest-trial-signup-smoke-check.md",
         )
 
+    def test_build_packet_verification_commands_returns_copy_paste_checks(self):
+        commands = smoke.build_packet_verification_commands()
+
+        self.assertEqual(
+            commands["latest_bundle"],
+            [
+                "cd . && sha256sum -c docs/smoke-checks/escalation-packet/escalation-packet.zip.sha256",
+                "cd . && unzip -l docs/smoke-checks/escalation-packet/escalation-packet.zip",
+            ],
+        )
+        self.assertEqual(
+            commands["archived_bundle"],
+            [
+                "cd . && latest_checksum=$(ls -1t docs/smoke-checks/escalation-packet/archive/*-escalation-packet.zip.sha256 | head -n 1)",
+                "cd . && sha256sum -c \"$latest_checksum\"",
+                "cd . && latest_bundle=${latest_checksum%.sha256} && unzip -l \"$latest_bundle\"",
+            ],
+        )
+
     def test_build_artifact_inventory_reports_expected_handoff_files(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = pathlib.Path(tmpdir)
@@ -1424,6 +1443,9 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertIn("## Escalation recommendation", markdown)
         self.assertIn("## Artifact refresh commands", markdown)
         self.assertIn("- both: python3 scripts/trial_signup_smoke_check.py --json-out docs/smoke-checks/latest-trial-signup-smoke-check.json --markdown-out docs/smoke-checks/latest-trial-signup-smoke-check.md", markdown)
+        self.assertIn("## Packet verification commands", markdown)
+        self.assertIn("sha256sum -c docs/smoke-checks/escalation-packet/escalation-packet.zip.sha256", markdown)
+        self.assertIn("unzip -l docs/smoke-checks/escalation-packet/escalation-packet.zip", markdown)
         self.assertIn("## Artifact inventory", markdown)
         self.assertIn("- recommended_attachments: docs/smoke-checks/latest-trial-signup-smoke-check.json, docs/smoke-checks/latest-trial-signup-smoke-check.md, docs/TRIAL_SIGNUP_E2E_REPORT_2026-04-01.md, render.yaml, docs/smoke-checks/owner-ready/traction.txt, docs/smoke-checks/owner-ready/render_support.txt", markdown)
         self.assertIn("## Escalation packet hashes", markdown)
@@ -1525,6 +1547,13 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertEqual(
             payload["summary"]["artifact_refresh_commands"]["both"],
             "python3 scripts/trial_signup_smoke_check.py --json-out docs/smoke-checks/latest-trial-signup-smoke-check.json --markdown-out docs/smoke-checks/latest-trial-signup-smoke-check.md",
+        )
+        self.assertEqual(
+            payload["summary"]["packet_verification_commands"]["latest_bundle"][0],
+            "cd . && sha256sum -c docs/smoke-checks/escalation-packet/escalation-packet.zip.sha256",
+        )
+        self.assertTrue(
+            payload["summary"]["packet_verification_commands"]["archived_bundle"][2].endswith('unzip -l "$latest_bundle"')
         )
         self.assertIn("traction", payload["summary"]["owner_action_plan"])
         self.assertIn("render_support", payload["summary"]["owner_action_plan"])

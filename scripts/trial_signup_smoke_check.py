@@ -1463,6 +1463,24 @@ def build_escalation_packet_readme(report: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def build_packet_verification_commands() -> dict[str, list[str]]:
+    latest_bundle = DEFAULT_ESCALATION_PACKET_DIR / "escalation-packet.zip"
+    latest_checksum = DEFAULT_ESCALATION_PACKET_DIR / "escalation-packet.zip.sha256"
+
+    return {
+        "latest_bundle": [
+            f"cd {_display_path(ROOT)} && sha256sum -c {_display_path(latest_checksum)}",
+            f"cd {_display_path(ROOT)} && unzip -l {_display_path(latest_bundle)}",
+        ],
+        "archived_bundle": [
+            "cd {} && latest_checksum=$(ls -1t docs/smoke-checks/escalation-packet/archive/*-escalation-packet.zip.sha256 | head -n 1)".format(_display_path(ROOT)),
+            "cd {} && sha256sum -c \"$latest_checksum\"".format(_display_path(ROOT)),
+            "cd {} && latest_bundle=${{latest_checksum%.sha256}} && unzip -l \"$latest_bundle\"".format(_display_path(ROOT)),
+        ],
+    }
+
+
+
 def build_artifact_inventory() -> dict[str, Any]:
     smoke_dir = ROOT / "docs" / "smoke-checks"
     artifact_paths = {
@@ -1774,6 +1792,7 @@ def generate_report(previous_report: dict[str, Any] | None = None) -> dict[str, 
         render_incident_signature,
     )
     artifact_refresh_commands = build_artifact_refresh_commands()
+    packet_verification_commands = build_packet_verification_commands()
     artifact_inventory = build_artifact_inventory()
     owner_action_plan = build_owner_action_plan(
         report,
@@ -1835,6 +1854,7 @@ def generate_report(previous_report: dict[str, Any] | None = None) -> dict[str, 
         "render_incident_signature": render_incident_signature,
         "render_support_packet": render_support_packet,
         "artifact_refresh_commands": artifact_refresh_commands,
+        "packet_verification_commands": packet_verification_commands,
         "artifact_inventory": artifact_inventory,
         "owner_action_plan": owner_action_plan,
         "owner_ready_messages": owner_ready_messages,
@@ -2117,6 +2137,17 @@ def render_markdown_report(report: dict[str, Any]) -> str:
     )
     for label, command in summary["artifact_refresh_commands"].items():
         lines.append(f"- {label}: {command}")
+
+    lines.extend(
+        [
+            "",
+            "## Packet verification commands",
+        ]
+    )
+    for label, commands in summary["packet_verification_commands"].items():
+        lines.append(f"- {label}:")
+        for command in commands:
+            lines.append(f"  - {command}")
 
     lines.extend(
         [
