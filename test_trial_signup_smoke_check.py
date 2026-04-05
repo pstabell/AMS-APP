@@ -297,10 +297,15 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
                 "docs/smoke-checks/latest-trial-signup-smoke-check.md",
                 "docs/TRIAL_SIGNUP_E2E_REPORT_2026-04-01.md",
                 "render.yaml",
+                "docs/smoke-checks/owner-ready/traction.txt",
+                "docs/smoke-checks/owner-ready/render_support.txt",
             ],
         )
         self.assertIn("render.yaml", inventory["render_support_packet_files"])
+        self.assertIn("docs/smoke-checks/owner-ready/render_support.txt", inventory["render_support_packet_files"])
         self.assertIn("docs/smoke-checks/latest-trial-signup-smoke-check.md", inventory["traction_handoff_files"])
+        self.assertIn("docs/smoke-checks/owner-ready/traction.txt", inventory["traction_handoff_files"])
+        self.assertEqual(inventory["owner_ready_archive"]["file_count"], 0)
 
     def test_build_owner_ready_messages_generates_forwardable_handoffs(self):
         report = {
@@ -1404,7 +1409,7 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertIn("## Artifact refresh commands", markdown)
         self.assertIn("- both: python3 scripts/trial_signup_smoke_check.py --json-out docs/smoke-checks/latest-trial-signup-smoke-check.json --markdown-out docs/smoke-checks/latest-trial-signup-smoke-check.md", markdown)
         self.assertIn("## Artifact inventory", markdown)
-        self.assertIn("- recommended_attachments: docs/smoke-checks/latest-trial-signup-smoke-check.json, docs/smoke-checks/latest-trial-signup-smoke-check.md, docs/TRIAL_SIGNUP_E2E_REPORT_2026-04-01.md, render.yaml", markdown)
+        self.assertIn("- recommended_attachments: docs/smoke-checks/latest-trial-signup-smoke-check.json, docs/smoke-checks/latest-trial-signup-smoke-check.md, docs/TRIAL_SIGNUP_E2E_REPORT_2026-04-01.md, render.yaml, docs/smoke-checks/owner-ready/traction.txt, docs/smoke-checks/owner-ready/render_support.txt", markdown)
         self.assertIn("## Owner action plan", markdown)
         self.assertIn("## Render recovery playbook", markdown)
         self.assertIn("## Recovery exit criteria", markdown)
@@ -1537,13 +1542,48 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
                 (pathlib.Path(temp_dir) / "render_support.txt").read_text(encoding="utf-8"),
             )
 
+    def test_build_owner_ready_archive_file_paths_uses_generated_at_slug(self):
+        report = self._build_ready_report()
+        report["generated_at"] = "2026-04-05T05:14:58.289624+00:00"
+
+        archive_paths = smoke.build_owner_ready_archive_file_paths(report, "docs/smoke-checks/owner-ready/archive")
+
+        self.assertEqual(
+            archive_paths["traction"].as_posix(),
+            "docs/smoke-checks/owner-ready/archive/2026-04-05T05-14-58-289624-00-00-traction.txt",
+        )
+        self.assertTrue(all(path.name.endswith('.txt') for path in archive_paths.values()))
+
+    def test_write_owner_ready_archive_writes_timestamped_snapshots(self):
+        report = self._build_ready_report()
+        report["generated_at"] = "2026-04-05T05:14:58.289624+00:00"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            written_paths = smoke.write_owner_ready_archive(report, temp_dir)
+            written_names = sorted(path.name for path in written_paths)
+
+            self.assertEqual(
+                written_names,
+                [
+                    "2026-04-05T05-14-58-289624-00-00-render_support.txt",
+                    "2026-04-05T05-14-58-289624-00-00-traction.txt",
+                    "2026-04-05T05-14-58-289624-00-00-verification_shell.txt",
+                ],
+            )
+            self.assertIn(
+                "Traction handoff",
+                (pathlib.Path(temp_dir) / "2026-04-05T05-14-58-289624-00-00-traction.txt").read_text(encoding="utf-8"),
+            )
+
     def test_main_can_write_json_markdown_and_owner_message_outputs(self):
         report = self._build_ready_report()
+        report["generated_at"] = "2026-04-05T05:14:58.289624+00:00"
 
         with tempfile.TemporaryDirectory() as temp_dir:
             json_path = pathlib.Path(temp_dir) / "report.json"
             markdown_path = pathlib.Path(temp_dir) / "report.md"
             owner_dir = pathlib.Path(temp_dir) / "owner-messages"
+            archive_dir = pathlib.Path(temp_dir) / "owner-messages-archive"
 
             with mock.patch.object(smoke, "generate_report", return_value=report), mock.patch.object(smoke, "load_previous_report", return_value=None), mock.patch("sys.stdout"):
                 exit_code = smoke.main([
@@ -1553,6 +1593,8 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
                     str(markdown_path),
                     "--owner-messages-dir",
                     str(owner_dir),
+                    "--owner-messages-archive-dir",
+                    str(archive_dir),
                 ])
 
             self.assertEqual(exit_code, 0)
@@ -1561,6 +1603,7 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
             self.assertTrue((owner_dir / "traction.txt").exists())
             self.assertTrue((owner_dir / "render_support.txt").exists())
             self.assertTrue((owner_dir / "verification_shell.txt").exists())
+            self.assertTrue((archive_dir / "2026-04-05T05-14-58-289624-00-00-traction.txt").exists())
             self.assertTrue(json.loads(json_path.read_text())["summary"]["ready_for_live_e2e"])
             self.assertIn("Trial Signup Smoke Check Snapshot", markdown_path.read_text())
 

@@ -32,6 +32,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 DEFAULT_JSON_ARTIFACT = ROOT / "docs" / "smoke-checks" / "latest-trial-signup-smoke-check.json"
+DEFAULT_OWNER_READY_DIR = ROOT / "docs" / "smoke-checks" / "owner-ready"
+DEFAULT_OWNER_READY_ARCHIVE_DIR = DEFAULT_OWNER_READY_DIR / "archive"
 
 APP_URL = os.getenv("RENDER_APP_URL", "https://commission-tracker-app.onrender.com")
 WEBHOOK_URL = os.getenv(
@@ -1302,6 +1304,38 @@ def build_artifact_refresh_commands() -> dict[str, str]:
     }
 
 
+def _display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(ROOT)) if path.is_absolute() else str(path)
+    except ValueError:
+        return str(path)
+
+
+def _artifact_metadata(path: Path) -> dict[str, Any]:
+    exists = path.exists()
+    return {
+        "path": _display_path(path),
+        "exists": exists,
+        "size_bytes": path.stat().st_size if exists else 0,
+        "modified_at": datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat() if exists else None,
+    }
+
+
+def _generated_at_slug(generated_at: str | None) -> str:
+    if not generated_at:
+        return "unknown-generated-at"
+    return re.sub(r"[^0-9A-Za-z]+", "-", generated_at).strip("-")
+
+
+def build_owner_ready_archive_file_paths(report: dict[str, Any], archive_dir: str | Path) -> dict[str, Path]:
+    base_path = Path(archive_dir)
+    slug = _generated_at_slug(report.get("generated_at"))
+    return {
+        owner: base_path / f"{slug}-{owner}.txt"
+        for owner in report.get("summary", {}).get("owner_ready_messages", {})
+    }
+
+
 def build_artifact_inventory() -> dict[str, Any]:
     smoke_dir = ROOT / "docs" / "smoke-checks"
     artifact_paths = {
@@ -1311,33 +1345,45 @@ def build_artifact_inventory() -> dict[str, Any]:
         "render_blueprint": ROOT / "render.yaml",
         "smoke_check_script": ROOT / "scripts" / "trial_signup_smoke_check.py",
         "smoke_check_tests": ROOT / "test_trial_signup_smoke_check.py",
+        "owner_ready_traction": DEFAULT_OWNER_READY_DIR / "traction.txt",
+        "owner_ready_render_support": DEFAULT_OWNER_READY_DIR / "render_support.txt",
+        "owner_ready_verification_shell": DEFAULT_OWNER_READY_DIR / "verification_shell.txt",
     }
 
     inventory: dict[str, Any] = {}
     for label, path in artifact_paths.items():
-        exists = path.exists()
-        inventory[label] = {
-            "path": str(path.relative_to(ROOT)) if path.is_absolute() else str(path),
-            "exists": exists,
-            "size_bytes": path.stat().st_size if exists else 0,
-            "modified_at": datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat() if exists else None,
-        }
+        inventory[label] = _artifact_metadata(path)
+
+    archive_files = sorted(DEFAULT_OWNER_READY_ARCHIVE_DIR.glob("*.txt")) if DEFAULT_OWNER_READY_ARCHIVE_DIR.exists() else []
+    inventory["owner_ready_archive"] = {
+        "path": _display_path(DEFAULT_OWNER_READY_ARCHIVE_DIR),
+        "exists": DEFAULT_OWNER_READY_ARCHIVE_DIR.exists(),
+        "file_count": len(archive_files),
+        "latest_files": [
+            _display_path(path)
+            for path in sorted(archive_files, key=lambda p: p.stat().st_mtime, reverse=True)[:6]
+        ],
+    }
 
     inventory["recommended_attachments"] = [
         "docs/smoke-checks/latest-trial-signup-smoke-check.json",
         "docs/smoke-checks/latest-trial-signup-smoke-check.md",
         "docs/TRIAL_SIGNUP_E2E_REPORT_2026-04-01.md",
         "render.yaml",
+        "docs/smoke-checks/owner-ready/traction.txt",
+        "docs/smoke-checks/owner-ready/render_support.txt",
     ]
     inventory["render_support_packet_files"] = [
         "docs/smoke-checks/latest-trial-signup-smoke-check.json",
         "docs/smoke-checks/latest-trial-signup-smoke-check.md",
         "render.yaml",
+        "docs/smoke-checks/owner-ready/render_support.txt",
     ]
     inventory["traction_handoff_files"] = [
         "docs/TRIAL_SIGNUP_E2E_REPORT_2026-04-01.md",
         "docs/smoke-checks/latest-trial-signup-smoke-check.md",
         "docs/smoke-checks/latest-trial-signup-smoke-check.json",
+        "docs/smoke-checks/owner-ready/traction.txt",
     ]
     return inventory
 
@@ -2009,6 +2055,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--owner-messages-dir",
         help="Optional directory to write copy-ready owner handoff text files.",
     )
+    parser.add_argument(
+        "--owner-messages-archive-dir",
+        help="Optional directory to write timestamped owner handoff snapshots for historical escalation evidence.",
+    )
     return parser.parse_args(argv)
 
 
@@ -2043,6 +2093,25 @@ def write_owner_ready_messages(report: dict[str, Any], output_dir: str) -> list[
     return written_paths
 
 
+def write_owner_ready_archive(report: dict[str, Any], archive_dir: str) -> list[Path]:
+    archive_paths = build_owner_ready_archive_file_paths(report, archive_dir)
+    if not archive_paths:
+        return []
+
+    base_path = Path(archive_dir)
+    base_path.mkdir(parents=True, exist_ok=True)
+
+    written_paths: list[Path] = []
+    for owner, target_path in archive_paths.items():
+        message = report.get("summary", {}).get("owner_ready_messages", {}).get(owner)
+        if message is None:
+            continue
+        target_path.write_text(str(message).rstrip() + "\n", encoding="utf-8")
+        written_paths.append(target_path)
+
+    return written_paths
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
@@ -2057,6 +2126,8 @@ def main(argv: list[str] | None = None) -> int:
         Path(args.markdown_out).write_text(render_markdown_report(report), encoding="utf-8")
     if args.owner_messages_dir:
         write_owner_ready_messages(report, args.owner_messages_dir)
+    if args.owner_messages_archive_dir:
+        write_owner_ready_archive(report, args.owner_messages_archive_dir)
 
     return 0 if report["summary"]["ready_for_live_e2e"] else 1
 
