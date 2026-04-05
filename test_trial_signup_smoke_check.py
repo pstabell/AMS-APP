@@ -305,6 +305,7 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
                 "docs/smoke-checks/escalation-packet/evidence-manifest.json",
                 "docs/smoke-checks/escalation-packet/README.txt",
                 "docs/smoke-checks/escalation-packet/escalation-packet.zip",
+                "docs/smoke-checks/escalation-packet/escalation-packet.zip.sha256",
             ],
         )
         self.assertIn("render.yaml", inventory["render_support_packet_files"])
@@ -312,8 +313,11 @@ class TrialSignupSmokeCheckTests(unittest.TestCase):
         self.assertIn("docs/smoke-checks/escalation-packet/render-support-message.txt", inventory["render_support_packet_files"])
         self.assertIn("docs/smoke-checks/escalation-packet/README.txt", inventory["render_support_packet_files"])
         self.assertIn("docs/smoke-checks/escalation-packet/escalation-packet.zip", inventory["render_support_packet_files"])
+        self.assertIn("docs/smoke-checks/escalation-packet/escalation-packet.zip.sha256", inventory["render_support_packet_files"])
         self.assertTrue(inventory["escalation_packet_bundle"]["path"].endswith("docs/smoke-checks/escalation-packet/escalation-packet.zip"))
+        self.assertTrue(inventory["escalation_packet_bundle_checksum"]["path"].endswith("docs/smoke-checks/escalation-packet/escalation-packet.zip.sha256"))
         self.assertIn("docs/smoke-checks/escalation-packet/evidence-manifest.json", inventory["traction_handoff_files"])
+        self.assertIn("docs/smoke-checks/escalation-packet/escalation-packet.zip.sha256", inventory["traction_handoff_files"])
         self.assertEqual(inventory["owner_ready_archive"]["file_count"], 0)
         self.assertFalse(inventory["escalation_packet_dir"]["exists"])
         self.assertEqual(inventory["escalation_packet_archive"]["file_count"], 0)
@@ -1647,6 +1651,18 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertIn("Use escalation-packet.zip if the support channel accepts a single attachment", readme)
         self.assertIn("Send render-support-message.txt as the support message body.", readme)
 
+    def test_write_bundle_checksum_file_writes_detached_sha256(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            bundle_path = pathlib.Path(temp_dir) / "escalation-packet.zip"
+            bundle_path.write_bytes(b"packet-bytes")
+
+            checksum_path = smoke.write_bundle_checksum_file(bundle_path)
+
+            self.assertEqual(checksum_path.name, "escalation-packet.zip.sha256")
+            checksum_text = checksum_path.read_text(encoding="utf-8")
+            self.assertTrue(checksum_text.endswith("  escalation-packet.zip\n"))
+            self.assertEqual(len(checksum_text.split()[0]), 64)
+
     def test_write_escalation_packet_writes_send_ready_files(self):
         report = self._build_ready_report()
         report["generated_at"] = "2026-04-05T05:14:58.289624+00:00"
@@ -1666,6 +1682,7 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
                 [
                     "README.txt",
                     "escalation-packet.zip",
+                    "escalation-packet.zip.sha256",
                     "evidence-manifest.json",
                     "render-support-message.txt",
                     "render-support-payload.json",
@@ -1685,6 +1702,8 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
             self.assertIn("evidence-manifest.json", manifest["packet_hashes"])
             self.assertEqual(len(manifest["packet_hashes"]["render-support-message.txt"]["sha256"]), 64)
             self.assertIn("AMS-APP Render Escalation Packet", (pathlib.Path(temp_dir) / "README.txt").read_text(encoding="utf-8"))
+            checksum_text = (pathlib.Path(temp_dir) / "escalation-packet.zip.sha256").read_text(encoding="utf-8")
+            self.assertTrue(checksum_text.endswith("  escalation-packet.zip\n"))
             with zipfile.ZipFile(pathlib.Path(temp_dir) / "escalation-packet.zip") as bundle:
                 self.assertEqual(
                     sorted(bundle.namelist()),
@@ -1722,6 +1741,10 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
             archive_paths["escalation-packet.zip"].as_posix(),
             "docs/smoke-checks/escalation-packet/archive/2026-04-05T05-14-58-289624-00-00-escalation-packet.zip",
         )
+        self.assertEqual(
+            archive_paths["escalation-packet.zip.sha256"].as_posix(),
+            "docs/smoke-checks/escalation-packet/archive/2026-04-05T05-14-58-289624-00-00-escalation-packet.zip.sha256",
+        )
 
     def test_write_escalation_packet_archive_writes_timestamped_snapshots(self):
         report = self._build_ready_report()
@@ -1742,6 +1765,7 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
                 [
                     "2026-04-05T05-14-58-289624-00-00-README.txt",
                     "2026-04-05T05-14-58-289624-00-00-escalation-packet.zip",
+                    "2026-04-05T05-14-58-289624-00-00-escalation-packet.zip.sha256",
                     "2026-04-05T05-14-58-289624-00-00-evidence-manifest.json",
                     "2026-04-05T05-14-58-289624-00-00-render-support-message.txt",
                     "2026-04-05T05-14-58-289624-00-00-render-support-payload.json",
@@ -1755,6 +1779,8 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
                 "AMS-APP Render Escalation Packet",
                 (pathlib.Path(temp_dir) / "2026-04-05T05-14-58-289624-00-00-README.txt").read_text(encoding="utf-8"),
             )
+            checksum_text = (pathlib.Path(temp_dir) / "2026-04-05T05-14-58-289624-00-00-escalation-packet.zip.sha256").read_text(encoding="utf-8")
+            self.assertTrue(checksum_text.endswith("  2026-04-05T05-14-58-289624-00-00-escalation-packet.zip\n"))
             with zipfile.ZipFile(pathlib.Path(temp_dir) / "2026-04-05T05-14-58-289624-00-00-escalation-packet.zip") as bundle:
                 self.assertIn("render-support-message.txt", bundle.namelist())
 
@@ -1798,11 +1824,13 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
             self.assertTrue((escalation_dir / "evidence-manifest.json").exists())
             self.assertTrue((escalation_dir / "README.txt").exists())
             self.assertTrue((escalation_dir / "escalation-packet.zip").exists())
+            self.assertTrue((escalation_dir / "escalation-packet.zip.sha256").exists())
             self.assertTrue((escalation_archive_dir / "2026-04-05T05-14-58-289624-00-00-render-support-message.txt").exists())
             self.assertTrue((escalation_archive_dir / "2026-04-05T05-14-58-289624-00-00-render-support-payload.json").exists())
             self.assertTrue((escalation_archive_dir / "2026-04-05T05-14-58-289624-00-00-evidence-manifest.json").exists())
             self.assertTrue((escalation_archive_dir / "2026-04-05T05-14-58-289624-00-00-README.txt").exists())
             self.assertTrue((escalation_archive_dir / "2026-04-05T05-14-58-289624-00-00-escalation-packet.zip").exists())
+            self.assertTrue((escalation_archive_dir / "2026-04-05T05-14-58-289624-00-00-escalation-packet.zip.sha256").exists())
             self.assertTrue(json.loads(json_path.read_text())["summary"]["ready_for_live_e2e"])
             self.assertIn("Trial Signup Smoke Check Snapshot", markdown_path.read_text())
 

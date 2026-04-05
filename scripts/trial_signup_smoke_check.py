@@ -1349,6 +1349,7 @@ def build_escalation_packet_archive_file_paths(report: dict[str, Any], archive_d
         "evidence-manifest.json": base_path / f"{slug}-evidence-manifest.json",
         "README.txt": base_path / f"{slug}-README.txt",
         "escalation-packet.zip": base_path / f"{slug}-escalation-packet.zip",
+        "escalation-packet.zip.sha256": base_path / f"{slug}-escalation-packet.zip.sha256",
     }
 
 
@@ -1358,6 +1359,13 @@ def write_escalation_packet_bundle(bundle_path: Path, file_contents: dict[str, s
         for filename, content in file_contents.items():
             bundle.writestr(filename, content)
     return bundle_path
+
+
+def write_bundle_checksum_file(bundle_path: Path) -> Path:
+    digest = hashlib.sha256(bundle_path.read_bytes()).hexdigest()
+    checksum_path = bundle_path.with_suffix(bundle_path.suffix + ".sha256")
+    checksum_path.write_text(f"{digest}  {bundle_path.name}\n", encoding="utf-8")
+    return checksum_path
 
 
 def build_escalation_packet_hashes(report: dict[str, Any], file_contents: dict[str, str]) -> dict[str, dict[str, Any]]:
@@ -1471,6 +1479,7 @@ def build_artifact_inventory() -> dict[str, Any]:
         "escalation_packet_payload": DEFAULT_ESCALATION_PACKET_DIR / "render-support-payload.json",
         "escalation_packet_manifest": DEFAULT_ESCALATION_PACKET_DIR / "evidence-manifest.json",
         "escalation_packet_readme": DEFAULT_ESCALATION_PACKET_DIR / "README.txt",
+        "escalation_packet_bundle_checksum": DEFAULT_ESCALATION_PACKET_DIR / "escalation-packet.zip.sha256",
     }
 
     inventory: dict[str, Any] = {}
@@ -1498,6 +1507,7 @@ def build_artifact_inventory() -> dict[str, Any]:
         ],
     }
     inventory["escalation_packet_bundle"] = _artifact_metadata(DEFAULT_ESCALATION_PACKET_DIR / "escalation-packet.zip")
+    inventory["escalation_packet_bundle_checksum"] = _artifact_metadata(DEFAULT_ESCALATION_PACKET_DIR / "escalation-packet.zip.sha256")
 
     escalation_archive_files = sorted(DEFAULT_ESCALATION_PACKET_ARCHIVE_DIR.glob("*")) if DEFAULT_ESCALATION_PACKET_ARCHIVE_DIR.exists() else []
     inventory["escalation_packet_archive"] = {
@@ -1522,6 +1532,7 @@ def build_artifact_inventory() -> dict[str, Any]:
         "docs/smoke-checks/escalation-packet/evidence-manifest.json",
         "docs/smoke-checks/escalation-packet/README.txt",
         "docs/smoke-checks/escalation-packet/escalation-packet.zip",
+        "docs/smoke-checks/escalation-packet/escalation-packet.zip.sha256",
     ]
     inventory["render_support_packet_files"] = [
         "docs/smoke-checks/latest-trial-signup-smoke-check.json",
@@ -1533,6 +1544,7 @@ def build_artifact_inventory() -> dict[str, Any]:
         "docs/smoke-checks/escalation-packet/evidence-manifest.json",
         "docs/smoke-checks/escalation-packet/README.txt",
         "docs/smoke-checks/escalation-packet/escalation-packet.zip",
+        "docs/smoke-checks/escalation-packet/escalation-packet.zip.sha256",
     ]
     inventory["traction_handoff_files"] = [
         "docs/TRIAL_SIGNUP_E2E_REPORT_2026-04-01.md",
@@ -1541,6 +1553,7 @@ def build_artifact_inventory() -> dict[str, Any]:
         "docs/smoke-checks/owner-ready/traction.txt",
         "docs/smoke-checks/escalation-packet/render-support-message.txt",
         "docs/smoke-checks/escalation-packet/evidence-manifest.json",
+        "docs/smoke-checks/escalation-packet/escalation-packet.zip.sha256",
     ]
     return inventory
 
@@ -2354,7 +2367,9 @@ def write_escalation_packet(report: dict[str, Any], output_dir: str) -> list[Pat
         target_path.write_text(content, encoding="utf-8")
         written_paths.append(target_path)
 
-    written_paths.append(write_escalation_packet_bundle(base_path / "escalation-packet.zip", files_to_write))
+    bundle_path = write_escalation_packet_bundle(base_path / "escalation-packet.zip", files_to_write)
+    written_paths.append(bundle_path)
+    written_paths.append(write_bundle_checksum_file(bundle_path))
     return written_paths
 
 
@@ -2370,7 +2385,17 @@ def write_escalation_packet_archive(report: dict[str, Any], archive_dir: str) ->
     written_paths: list[Path] = []
     for filename, target_path in archive_paths.items():
         if filename == "escalation-packet.zip":
-            written_paths.append(write_escalation_packet_bundle(target_path, files_to_write))
+            bundle_path = write_escalation_packet_bundle(target_path, files_to_write)
+            written_paths.append(bundle_path)
+            checksum_path = archive_paths.get("escalation-packet.zip.sha256")
+            if checksum_path is not None:
+                checksum_path.write_text(
+                    f"{hashlib.sha256(bundle_path.read_bytes()).hexdigest()}  {bundle_path.name}\n",
+                    encoding="utf-8",
+                )
+                written_paths.append(checksum_path)
+            continue
+        if filename == "escalation-packet.zip.sha256":
             continue
         content = files_to_write.get(filename)
         if content is None:

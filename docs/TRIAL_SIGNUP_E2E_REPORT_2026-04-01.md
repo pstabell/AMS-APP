@@ -9,6 +9,9 @@
 Validate the solo-agent trial signup path from signup form through Stripe checkout configuration, account provisioning webhook behavior, and onboarding email path.
 
 ## Latest Update
+- 2026-04-05 3:18 PM ET: Added a detached `escalation-packet.zip.sha256` sidecar to the smoke-check output, so each send-ready Render packet now includes an integrity checksum for the exact archive file that gets attached to support tickets.
+- Expanded `scripts/trial_signup_smoke_check.py` so both the live escalation packet and its timestamped archive now write the SHA-256 sidecar automatically, updated `artifact_inventory` and recommended attachment lists to include it, and added regression coverage in `test_trial_signup_smoke_check.py` for checksum writing, packet writing, archive writing, and the full CLI path.
+- Validation: `python3 -m unittest test_checkout_flow.py test_webhook_subscription_status.py test_trial_signup_smoke_check.py` passed 204/204, and the refreshed smoke-check artifacts still isolate the blocker to the external Render routing outage.
 - 2026-04-05 1:27 PM ET: Added a generated `escalation-packet.zip` bundle to the smoke-check output, so every send-ready Render packet now ships as both individual files and a single attachable archive for support tickets that only want one upload.
 - Expanded `scripts/trial_signup_smoke_check.py` so both the live escalation packet and its timestamped archive now write the zip bundle automatically, updated `artifact_inventory` and packet instructions to reference the bundle, and added regression coverage in `test_trial_signup_smoke_check.py` for zip generation, archive naming, and end-to-end CLI output.
 - Validation: `python3 -m unittest test_checkout_flow.py test_webhook_subscription_status.py test_trial_signup_smoke_check.py` passed after the bundle change, and the latest smoke-check rerun still shows the same external Render routing outage.
