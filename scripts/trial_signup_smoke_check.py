@@ -1616,6 +1616,59 @@ def build_artifact_inventory() -> dict[str, Any]:
     return inventory
 
 
+
+
+def build_artifact_freshness(report: dict[str, Any]) -> dict[str, Any]:
+    summary = report.get("summary", {})
+    inventory = summary.get("artifact_inventory", {})
+    generated_at = report.get("generated_at")
+    generated_at_dt = _parse_generated_at(generated_at)
+
+    tracked_labels = [
+        "latest_json",
+        "latest_markdown",
+        "owner_ready_traction",
+        "owner_ready_render_support",
+        "owner_ready_verification_shell",
+        "escalation_packet_message",
+        "escalation_packet_payload",
+        "escalation_packet_manifest",
+        "escalation_packet_readme",
+        "escalation_packet_bundle",
+        "escalation_packet_bundle_checksum",
+    ]
+
+    files: dict[str, Any] = {}
+    stale_labels: list[str] = []
+    missing_labels: list[str] = []
+
+    for label in tracked_labels:
+        details = inventory.get(label, {})
+        modified_at = details.get("modified_at")
+        modified_dt = _parse_generated_at(modified_at)
+        exists = bool(details.get("exists"))
+        fresh_for_run = bool(exists and generated_at_dt and modified_dt and modified_dt >= generated_at_dt)
+        files[label] = {
+            "path": details.get("path"),
+            "exists": exists,
+            "modified_at": modified_at,
+            "fresh_for_run": fresh_for_run,
+        }
+        if not exists:
+            missing_labels.append(label)
+        elif not fresh_for_run:
+            stale_labels.append(label)
+
+    return {
+        "generated_at": generated_at,
+        "tracked_file_count": len(tracked_labels),
+        "fresh_file_count": sum(1 for details in files.values() if details["fresh_for_run"]),
+        "missing_labels": missing_labels,
+        "stale_labels": stale_labels,
+        "all_fresh": not missing_labels and not stale_labels,
+        "files": files,
+    }
+
 def build_owner_ready_messages(
     report: dict[str, Any],
     render_support_packet: dict[str, Any],
@@ -1943,6 +1996,15 @@ def generate_report(previous_report: dict[str, Any] | None = None) -> dict[str, 
             "incident_history": incident_history,
             "escalation_recommendation": escalation_recommendation,
             "executive_summary_lines": executive_summary_lines,
+            "artifact_freshness": {
+                "generated_at": report["generated_at"],
+                "tracked_file_count": 0,
+                "fresh_file_count": 0,
+                "missing_labels": [],
+                "stale_labels": [],
+                "all_fresh": False,
+                "files": {},
+            },
         }
     )
     return report
@@ -2199,6 +2261,19 @@ def render_markdown_report(report: dict[str, Any]) -> str:
         lines.append(f"- {label}:")
         for command in commands:
             lines.append(f"  - {command}")
+
+    artifact_freshness = summary.get("artifact_freshness")
+    if artifact_freshness:
+        lines.extend(
+            [
+                "",
+                "## Artifact freshness",
+                f"- All tracked files fresh for this run: {'YES' if artifact_freshness.get('all_fresh') else 'NO'}",
+                f"- Fresh file count: {artifact_freshness.get('fresh_file_count', 0)}/{artifact_freshness.get('tracked_file_count', 0)}",
+                "- Missing labels: " + (", ".join(artifact_freshness.get('missing_labels', [])) or 'None'),
+                "- Stale labels: " + (", ".join(artifact_freshness.get('stale_labels', [])) or 'None'),
+            ]
+        )
 
     packet_verification = summary.get("latest_escalation_packet_verification")
     if packet_verification:
@@ -2589,6 +2664,7 @@ def main(argv: list[str] | None = None) -> int:
         write_escalation_packet_archive(report, args.escalation_packet_archive_dir)
 
     report["summary"]["artifact_inventory"] = build_artifact_inventory()
+    report["summary"]["artifact_freshness"] = build_artifact_freshness(report)
     refreshed_payload = json.dumps(report, indent=2, sort_keys=True)
     if args.json_out:
         Path(args.json_out).write_text(refreshed_payload + "\n", encoding="utf-8")

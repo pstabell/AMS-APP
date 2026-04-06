@@ -2067,5 +2067,67 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertFalse(payload["summary"]["ready_for_live_e2e"])
 
 
+    def test_build_artifact_freshness_flags_current_and_stale_outputs(self):
+        report = {
+            "generated_at": "2026-04-06T05:14:00+00:00",
+            "summary": {
+                "artifact_inventory": {
+                    "latest_json": {"path": "docs/smoke-checks/latest-trial-signup-smoke-check.json", "exists": True, "modified_at": "2026-04-06T05:14:01+00:00"},
+                    "latest_markdown": {"path": "docs/smoke-checks/latest-trial-signup-smoke-check.md", "exists": True, "modified_at": "2026-04-06T05:14:02+00:00"},
+                    "owner_ready_traction": {"path": "docs/smoke-checks/owner-ready/traction.txt", "exists": True, "modified_at": "2026-04-06T05:13:59+00:00"},
+                    "owner_ready_render_support": {"path": "docs/smoke-checks/owner-ready/render_support.txt", "exists": False, "modified_at": None},
+                    "owner_ready_verification_shell": {"path": "docs/smoke-checks/owner-ready/verification_shell.txt", "exists": True, "modified_at": "2026-04-06T05:14:03+00:00"},
+                    "escalation_packet_message": {"path": "docs/smoke-checks/escalation-packet/render-support-message.txt", "exists": True, "modified_at": "2026-04-06T05:14:04+00:00"},
+                    "escalation_packet_payload": {"path": "docs/smoke-checks/escalation-packet/render-support-payload.json", "exists": True, "modified_at": "2026-04-06T05:14:05+00:00"},
+                    "escalation_packet_manifest": {"path": "docs/smoke-checks/escalation-packet/evidence-manifest.json", "exists": True, "modified_at": "2026-04-06T05:14:06+00:00"},
+                    "escalation_packet_readme": {"path": "docs/smoke-checks/escalation-packet/README.txt", "exists": True, "modified_at": "2026-04-06T05:14:07+00:00"},
+                    "escalation_packet_bundle": {"path": "docs/smoke-checks/escalation-packet/escalation-packet.zip", "exists": True, "modified_at": "2026-04-06T05:14:08+00:00"},
+                    "escalation_packet_bundle_checksum": {"path": "docs/smoke-checks/escalation-packet/escalation-packet.zip.sha256", "exists": True, "modified_at": "2026-04-06T05:14:09+00:00"},
+                }
+            },
+        }
+
+        freshness = smoke.build_artifact_freshness(report)
+
+        self.assertFalse(freshness["all_fresh"])
+        self.assertEqual(freshness["tracked_file_count"], 11)
+        self.assertEqual(freshness["fresh_file_count"], 9)
+        self.assertIn("owner_ready_traction", freshness["stale_labels"])
+        self.assertIn("owner_ready_render_support", freshness["missing_labels"])
+        self.assertTrue(freshness["files"]["latest_json"]["fresh_for_run"])
+        self.assertFalse(freshness["files"]["owner_ready_traction"]["fresh_for_run"])
+
+    def test_main_reports_artifact_freshness_surfaces_nondefault_output_paths_as_stale(self):
+        report = self._build_ready_report()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            json_path = pathlib.Path(temp_dir) / "report.json"
+            markdown_path = pathlib.Path(temp_dir) / "report.md"
+            owner_dir = pathlib.Path(temp_dir) / "owner-messages"
+            archive_dir = pathlib.Path(temp_dir) / "owner-messages-archive"
+            escalation_dir = pathlib.Path(temp_dir) / "escalation-packet"
+            escalation_archive_dir = pathlib.Path(temp_dir) / "escalation-packet-archive"
+
+            with mock.patch.object(smoke, "generate_report", return_value=report), mock.patch.object(smoke, "load_previous_report", return_value=None), mock.patch("sys.stdout"):
+                exit_code = smoke.main([
+                    "--json-out", str(json_path),
+                    "--markdown-out", str(markdown_path),
+                    "--owner-messages-dir", str(owner_dir),
+                    "--owner-messages-archive-dir", str(archive_dir),
+                    "--escalation-packet-dir", str(escalation_dir),
+                    "--escalation-packet-archive-dir", str(escalation_archive_dir),
+                ])
+
+            self.assertEqual(exit_code, 0)
+            saved_payload = json.loads(json_path.read_text())
+            self.assertIn("artifact_freshness", saved_payload["summary"])
+            self.assertIn("artifact_freshness", saved_payload["summary"])
+            self.assertFalse(saved_payload["summary"]["artifact_freshness"]["all_fresh"])
+            self.assertEqual(saved_payload["summary"]["artifact_freshness"]["tracked_file_count"], 11)
+            self.assertGreaterEqual(len(saved_payload["summary"]["artifact_freshness"]["stale_labels"]), 1)
+            self.assertIn("latest_json", saved_payload["summary"]["artifact_freshness"]["stale_labels"])
+            self.assertIn("## Artifact freshness", markdown_path.read_text())
+
+
 if __name__ == "__main__":
     unittest.main()
