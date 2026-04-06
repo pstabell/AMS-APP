@@ -1837,6 +1837,32 @@ def _build_checkout_kwargs(email: str, accepted_at: str, price_id: str, app_url:
         self.assertEqual(verification["missing_bundle_members"], [])
         self.assertGreaterEqual(verification["manifest_packet_hash_count"], 1)
         self.assertIn(verification["manifest_lists_bundle_checksum"], [True, False])
+        self.assertTrue(verification["manifest_hashes_match_files"])
+        self.assertEqual(verification["manifest_missing_hash_files"], [])
+        self.assertEqual(verification["manifest_mismatched_hash_files"], [])
+
+    def test_verify_latest_escalation_packet_detects_manifest_hash_drift(self):
+        report = self._build_ready_report()
+        report["generated_at"] = "2026-04-05T05:14:58.289624+00:00"
+        report["summary"]["artifact_inventory"] = {
+            "recommended_attachments": ["docs/smoke-checks/latest-trial-signup-smoke-check.json"],
+            "render_support_packet_files": ["render.yaml"],
+            "traction_handoff_files": ["docs/TRIAL_SIGNUP_E2E_REPORT_2026-04-01.md"],
+        }
+        report["summary"]["render_escalation_message"] = "Render support request body"
+        report["summary"]["render_escalation_payload"] = {"ticket_title": "Webhook routing outage", "severity": "critical"}
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            packet_dir = pathlib.Path(temp_dir)
+            smoke.write_escalation_packet(report, temp_dir)
+            (packet_dir / "render-support-message.txt").write_text("tampered message", encoding="utf-8")
+
+            verification = smoke.verify_latest_escalation_packet(temp_dir)
+
+        self.assertFalse(verification["ok"])
+        self.assertFalse(verification["manifest_hashes_match_files"])
+        self.assertEqual(verification["manifest_missing_hash_files"], [])
+        self.assertEqual(verification["manifest_mismatched_hash_files"], ["render-support-message.txt"])
 
     def test_build_escalation_packet_archive_file_paths_uses_generated_at_slug(self):
         report = self._build_ready_report()

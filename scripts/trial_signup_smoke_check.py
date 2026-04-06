@@ -2288,6 +2288,9 @@ def render_markdown_report(report: dict[str, Any]) -> str:
                 f"- Checksum matches bundle: {'YES' if packet_verification.get('checksum_matches') else 'NO'}",
                 f"- Manifest packet hash count: {packet_verification.get('manifest_packet_hash_count', 0)}",
                 f"- Manifest lists bundle checksum: {'YES' if packet_verification.get('manifest_lists_bundle_checksum') else 'NO'}",
+                f"- Manifest hashes match files: {'YES' if packet_verification.get('manifest_hashes_match_files') else 'NO'}",
+                "- Manifest missing hash files: " + (", ".join(packet_verification.get('manifest_missing_hash_files', [])) or 'None'),
+                "- Manifest mismatched hash files: " + (", ".join(packet_verification.get('manifest_mismatched_hash_files', [])) or 'None'),
                 "- Bundle members: " + (", ".join(packet_verification.get('bundle_members', [])) or 'None'),
                 "- Missing bundle members: " + (", ".join(packet_verification.get('missing_bundle_members', [])) or 'None'),
             ]
@@ -2584,7 +2587,7 @@ def write_escalation_packet_archive(report: dict[str, Any], archive_dir: str) ->
 def verify_latest_escalation_packet(output_dir: str) -> dict[str, Any]:
     base_path = Path(output_dir)
     bundle_path = base_path / "escalation-packet.zip"
-    checksum_path = base_path / "escalation-packet.zip.sha256"
+    checksum_path = bundle_path.with_suffix(bundle_path.suffix + ".sha256")
     manifest_path = base_path / "evidence-manifest.json"
 
     status = {
@@ -2597,6 +2600,9 @@ def verify_latest_escalation_packet(output_dir: str) -> dict[str, Any]:
         "checksum_matches": False,
         "manifest_packet_hash_count": 0,
         "manifest_lists_bundle_checksum": False,
+        "manifest_hashes_match_files": False,
+        "manifest_missing_hash_files": [],
+        "manifest_mismatched_hash_files": [],
         "ok": False,
     }
 
@@ -2630,6 +2636,29 @@ def verify_latest_escalation_packet(output_dir: str) -> dict[str, Any]:
             path.endswith("escalation-packet.zip.sha256") for path in manifest_paths
         )
 
+        for filename, details in packet_hashes.items():
+            if filename == "evidence-manifest.json":
+                continue
+            if filename == "escalation-packet.zip.sha256":
+                candidate_path = checksum_path
+            elif details.get("path"):
+                candidate_path = ROOT / details["path"]
+            else:
+                candidate_path = base_path / filename
+
+            if not candidate_path.exists():
+                status["manifest_missing_hash_files"].append(filename)
+                continue
+
+            actual_hash = hashlib.sha256(candidate_path.read_bytes()).hexdigest()
+            recorded_hash = details.get("sha256")
+            if actual_hash != recorded_hash:
+                status["manifest_mismatched_hash_files"].append(filename)
+
+        status["manifest_hashes_match_files"] = not status["manifest_missing_hash_files"] and not status[
+            "manifest_mismatched_hash_files"
+        ]
+
     status["ok"] = (
         status["bundle_exists"]
         and status["checksum_exists"]
@@ -2637,6 +2666,7 @@ def verify_latest_escalation_packet(output_dir: str) -> dict[str, Any]:
         and not status["missing_bundle_members"]
         and status["checksum_matches"]
         and status["manifest_packet_hash_count"] > 0
+        and status["manifest_hashes_match_files"]
     )
     return status
 
