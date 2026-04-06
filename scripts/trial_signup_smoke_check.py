@@ -2200,6 +2200,24 @@ def render_markdown_report(report: dict[str, Any]) -> str:
         for command in commands:
             lines.append(f"  - {command}")
 
+    packet_verification = summary.get("latest_escalation_packet_verification")
+    if packet_verification:
+        lines.extend(
+            [
+                "",
+                "## Latest escalation packet verification",
+                f"- Overall status: {'PASS' if packet_verification.get('ok') else 'FAIL'}",
+                f"- Bundle exists: {'YES' if packet_verification.get('bundle_exists') else 'NO'}",
+                f"- Checksum exists: {'YES' if packet_verification.get('checksum_exists') else 'NO'}",
+                f"- Manifest exists: {'YES' if packet_verification.get('manifest_exists') else 'NO'}",
+                f"- Checksum matches bundle: {'YES' if packet_verification.get('checksum_matches') else 'NO'}",
+                f"- Manifest packet hash count: {packet_verification.get('manifest_packet_hash_count', 0)}",
+                f"- Manifest lists bundle checksum: {'YES' if packet_verification.get('manifest_lists_bundle_checksum') else 'NO'}",
+                "- Bundle members: " + (", ".join(packet_verification.get('bundle_members', [])) or 'None'),
+                "- Missing bundle members: " + (", ".join(packet_verification.get('missing_bundle_members', [])) or 'None'),
+            ]
+        )
+
     lines.extend(
         [
             "",
@@ -2488,6 +2506,66 @@ def write_escalation_packet_archive(report: dict[str, Any], archive_dir: str) ->
     return written_paths
 
 
+def verify_latest_escalation_packet(output_dir: str) -> dict[str, Any]:
+    base_path = Path(output_dir)
+    bundle_path = base_path / "escalation-packet.zip"
+    checksum_path = base_path / "escalation-packet.zip.sha256"
+    manifest_path = base_path / "evidence-manifest.json"
+
+    status = {
+        "checked": True,
+        "bundle_exists": bundle_path.exists(),
+        "checksum_exists": checksum_path.exists(),
+        "manifest_exists": manifest_path.exists(),
+        "bundle_members": [],
+        "missing_bundle_members": [],
+        "checksum_matches": False,
+        "manifest_packet_hash_count": 0,
+        "manifest_lists_bundle_checksum": False,
+        "ok": False,
+    }
+
+    expected_members = [
+        "README.txt",
+        "evidence-manifest.json",
+        "render-support-message.txt",
+        "render-support-payload.json",
+    ]
+
+    if status["bundle_exists"]:
+        with zipfile.ZipFile(bundle_path) as bundle:
+            members = sorted(bundle.namelist())
+        status["bundle_members"] = members
+        status["missing_bundle_members"] = [name for name in expected_members if name not in members]
+
+    if status["bundle_exists"] and status["checksum_exists"]:
+        checksum_text = checksum_path.read_text(encoding="utf-8").strip()
+        recorded_hash = checksum_text.split()[0] if checksum_text else ""
+        actual_hash = hashlib.sha256(bundle_path.read_bytes()).hexdigest()
+        status["checksum_matches"] = bool(recorded_hash) and recorded_hash == actual_hash
+
+    if status["manifest_exists"]:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        packet_hashes = manifest.get("packet_hashes", {})
+        status["manifest_packet_hash_count"] = len(packet_hashes)
+        manifest_paths = set(manifest.get("render_support_packet_files", [])) | set(
+            manifest.get("recommended_attachments", [])
+        ) | set(manifest.get("traction_handoff_files", []))
+        status["manifest_lists_bundle_checksum"] = any(
+            path.endswith("escalation-packet.zip.sha256") for path in manifest_paths
+        )
+
+    status["ok"] = (
+        status["bundle_exists"]
+        and status["checksum_exists"]
+        and status["manifest_exists"]
+        and not status["missing_bundle_members"]
+        and status["checksum_matches"]
+        and status["manifest_packet_hash_count"] > 0
+    )
+    return status
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
@@ -2504,6 +2582,9 @@ def main(argv: list[str] | None = None) -> int:
         write_owner_ready_archive(report, args.owner_messages_archive_dir)
     if args.escalation_packet_dir:
         write_escalation_packet(report, args.escalation_packet_dir)
+        report["summary"]["latest_escalation_packet_verification"] = verify_latest_escalation_packet(
+            args.escalation_packet_dir
+        )
     if args.escalation_packet_archive_dir:
         write_escalation_packet_archive(report, args.escalation_packet_archive_dir)
 

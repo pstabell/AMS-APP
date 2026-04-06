@@ -1,5 +1,5 @@
 AMS-APP Render Escalation Packet
-Generated at: 2026-04-06T03:17:57.614812+00:00
+Generated at: 2026-04-06T03:15:17.718670+00:00
 Severity: critical
 Owner: Traction
 Destination: Render support
@@ -44,12 +44,12 @@ Live verification shell still needs these secrets before the final Stripe test:
 - SUPABASE_SERVICE_KEY
 
 Integrity hashes:
-- README.txt: sha256=47937ef39643d908074744547d324e939f5ecebe31069d40c8650d2c1d789111 size_bytes=3140
-- evidence-manifest.json: sha256=69d4d919d60c4ead7eb08c57d583f21f04d347e27c16e25ceb711c41079632b5 size_bytes=10069
-- latest-trial-signup-smoke-check.json: path=docs/smoke-checks/latest-trial-signup-smoke-check.json sha256=96ad5b6ee5e2abaf6f9b077b95d942456084cc43396ed10eb2d4b7f295f44811 size_bytes=53058
-- latest-trial-signup-smoke-check.md: path=docs/smoke-checks/latest-trial-signup-smoke-check.md sha256=2711b509baf4ff72832b660ef8657335578bbe2c1c6ade632307880e872825d0 size_bytes=33669
-- render-support-message.txt: sha256=aa26580d48670616a453e25a982957abe1b87a492b33acb22bd5521c9ef33888 size_bytes=2406
-- render-support-payload.json: sha256=e4adbef1313bde4b55733b841f5f7b9c373971c03b262621e17186872ad5ebb3 size_bytes=1392
+- README.txt: sha256=f0345c86bb8ca1a772dec8e567bc756b6003c86fb8855c221010e36883551c02 size_bytes=3140
+- evidence-manifest.json: sha256=f9f404f4f7434b3475caa907f07a9e27c667cc9208a9348a3410d8c7839eede1 size_bytes=10069
+- latest-trial-signup-smoke-check.json: path=docs/smoke-checks/latest-trial-signup-smoke-check.json sha256=9b8fe3842084702e1ec056ae63f9645fe57cb9b32b119a696c38ddfdb81bedce size_bytes=50899
+- latest-trial-signup-smoke-check.md: path=docs/smoke-checks/latest-trial-signup-smoke-check.md sha256=3d7f4cd61e600aa4aae911799bb9d5fc1358cd7902d53f46b69411dfcaa9dc29 size_bytes=32689
+- render-support-message.txt: sha256=26cd3561bd0297f1f8675a75316e712ddf152d0fca7a7743cd779b688ac33b9b size_bytes=2406
+- render-support-payload.json: sha256=10208c32ddade411acfcc28c98277f0781ba778a02c803e51f708db59fb237c7 size_bytes=1392
 
 If forwarding to Render support:
 1. Use escalation-packet.zip if the support channel accepts a single attachment, or send the individual files below.
